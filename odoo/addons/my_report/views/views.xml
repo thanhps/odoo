@@ -3,6 +3,7 @@
         <record model="ir.actions.server" id="my_report.create_report_action">
             <field name="name">Create Report Action</field>
             <field name="model_id" ref="sale.model_sale_order"/>
+            <field name="state">code</field>
             <field name="code">
 reportServer = env['ir.config_parameter'].sudo().get_param('http.report')
 action = { "type": "ir.actions.act_url",
