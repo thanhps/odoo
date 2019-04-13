@@ -1,0 +1,21 @@
+<odoo>
+    <data>
+        <record model="ir.actions.server" id="my_report.create_report_action">
+            <field name="name">Create Report Action</field>
+            <field name="model_id" ref="my_report.model_my_report"/>
+            <field name="code">
+reportServer = env['ir.config_parameter'].sudo().get_param('http.report')
+action = { "type": "ir.actions.act_url",
+                "url": reportServer,
+                "target": "new", }
+            </field>
+        </record>
+
+        <menuitem id="my_report.create_report"
+                  parent="sale.menu_sale_report"
+                  name="Create Report"
+                  action="my_report.create_report_action"
+                  groups="sales_team.group_sale_manager"
+                  sequence="99"/>
+    </data>
+</odoo>
