@@ -2,6 +2,7 @@
     <data>
         <record model="ir.actions.server" id="my_report.create_report_action">
             <field name="name">Create Report Action</field>
+            <field name="type">ir.actions.server</field>
             <field name="model_id" ref="sale.model_sale_order"/>
             <field name="state">code</field>
             <field name="code">
