@@ -1,19 +1,21 @@
 # Translation of Odoo Server.
 # This file contains the translation of the following modules:
-# * base_address_extended
+# 	* base_address_extended
 # 
 # Translators:
-# Levent Karakaş <levent@mektup.at>, 2018
-# Murat Kaplan <muratk@projetgrup.com>, 2018
-# Ertuğrul Güreş <ertugrulg@projetgrup.com>, 2018
+# Ediz Duman <neps1192@gmail.com>, 2019
+# Murat Kaplan <muratk@projetgrup.com>, 2019
+# Ertuğrul Güreş <ertugrulg@projetgrup.com>, 2019
+# Umur Akın <umura@projetgrup.com>, 2019
+# Tugay Hatıl <tugayh@projetgrup.com>, 2020
 # 
 msgid ""
 msgstr ""
-"Project-Id-Version: Odoo Server saas~11.5\n"
+"Project-Id-Version: Odoo Server saas~12.4\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-09-18 09:48+0000\n"
-"PO-Revision-Date: 2018-08-24 09:16+0000\n"
-"Last-Translator: Ertuğrul Güreş <ertugrulg@projetgrup.com>, 2018\n"
+"POT-Creation-Date: 2019-08-12 11:31+0000\n"
+"PO-Revision-Date: 2019-08-26 09:09+0000\n"
+"Last-Translator: Tugay Hatıl <tugayh@projetgrup.com>, 2020\n"
 "Language-Team: Turkish (https://www.transifex.com/odoo/teams/41243/tr/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -38,7 +40,7 @@ msgstr "Şirketler"
 #. module: base_address_extended
 #: model:ir.model,name:base_address_extended.model_res_partner
 msgid "Contact"
-msgstr "İletişim"
+msgstr "Kontak"
 
 #. module: base_address_extended
 #: model:ir.model,name:base_address_extended.model_res_country
@@ -49,7 +51,7 @@ msgstr "Ülke"
 #: model:ir.model.fields,field_description:base_address_extended.field_res_partner__street_number2
 #: model:ir.model.fields,field_description:base_address_extended.field_res_users__street_number2
 msgid "Door"
-msgstr ""
+msgstr "Kapı"
 
 #. module: base_address_extended
 #: model:ir.model.fields,field_description:base_address_extended.field_res_company__street_number2
@@ -68,12 +70,18 @@ msgid ""
 "%(street_number)s: the house number\n"
 "%(street_number2)s: the door number"
 msgstr ""
+"Bu ülkeye ait sokaklar için kullanılacak biçim.\n"
+"\n"
+"Python tarzı dize desenini caddenin tüm alanlarıyla kullanabilirsiniz (örneğin,  '%(street_name)s, %(street_number)s' sokak adını ve ardından bina numarasını görüntülemek istiyorsanız virgül kullanın)\n"
+"%(street_name)s: sokağın adı\n"
+"%(street_number)s: bina numarası\n"
+"%(street_number2)s: kapı numarası"
 
 #. module: base_address_extended
 #: model:ir.model.fields,field_description:base_address_extended.field_res_partner__street_number
 #: model:ir.model.fields,field_description:base_address_extended.field_res_users__street_number
 msgid "House"
-msgstr ""
+msgstr "Bina"
 
 #. module: base_address_extended
 #: model:ir.model.fields,field_description:base_address_extended.field_res_company__street_number
@@ -107,8 +115,8 @@ msgid "Street format..."
 msgstr "Sokak formatı..."
 
 #. module: base_address_extended
-#: code:addons/base_address_extended/models/base_address_extended.py:65
-#: code:addons/base_address_extended/models/base_address_extended.py:113
+#: code:addons/base_address_extended/models/base_address_extended.py:64
+#: code:addons/base_address_extended/models/base_address_extended.py:112
 #, python-format
 msgid "Unrecognized field %s in street format."
-msgstr ""
+msgstr "Sokak formatında %s tanımlanmayan alan."

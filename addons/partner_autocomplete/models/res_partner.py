@@ -50,8 +50,8 @@ class ResPartner(models.Model):
         if not country:
             country = self.env['res.country'].search([['name', '=ilike', country_name]])
 
-        state_id = {}
-        country_id = {}
+        state_id = False
+        country_id = False
         if country:
             country_id = {
                 'id': country.id,
@@ -87,15 +87,17 @@ class ResPartner(models.Model):
             return False, 'Insufficient Credit'
         url = '%s/%s' % (self.get_endpoint(), action)
         account = self.env['iap.account'].get('partner_autocomplete')
+        if not account.account_token:
+            return False, 'No Account Token'
         params.update({
             'db_uuid': self.env['ir.config_parameter'].sudo().get_param('database.uuid'),
             'account_token': account.account_token,
-            'country_code': self.env.user.company_id.country_id.code,
-            'zip': self.env.user.company_id.zip,
+            'country_code': self.env.company.country_id.code,
+            'zip': self.env.company.zip,
         })
         try:
             return jsonrpc(url=url, params=params, timeout=timeout), False
-        except (ConnectionError, HTTPError, exceptions.AccessError) as exception:
+        except (ConnectionError, HTTPError, exceptions.AccessError, exceptions.UserError) as exception:
             _logger.error('Autocomplete API error: %s' % str(exception))
             return False, str(exception)
         except InsufficientCreditError as exception:
@@ -110,7 +112,7 @@ class ResPartner(models.Model):
         if suggestions:
             results = []
             for suggestion in suggestions:
-                results.append(suggestion)
+                results.append(self._format_data_company(suggestion))
             return results
         else:
             return []
@@ -123,9 +125,22 @@ class ResPartner(models.Model):
             'vat': vat,
         })
         if response and response.get('company_data'):
-            return self._format_data_company(response.get('company_data'))
+            result = self._format_data_company(response.get('company_data'))
         else:
-            return {}
+            result = {}
+
+        if response and response.get('credit_error'):
+            result.update({
+                'error': True,
+                'error_message': 'Insufficient Credit'
+            })
+        elif error:
+            result.update({
+                'error': True,
+                'error_message': error
+            })
+
+        return result
 
     @api.model
     def read_by_vat(self, vat):
@@ -151,7 +166,7 @@ class ResPartner(models.Model):
 
     def _is_vat_syncable(self, vat):
         vat_country_code = vat[:2]
-        partner_country_code = self.country_id and self.country_id.code
+        partner_country_code = self.country_id.code if self.country_id else ''
         return self._is_company_in_europe(vat_country_code) and (partner_country_code == vat_country_code or not partner_country_code)
 
     def _is_synchable(self):
@@ -178,7 +193,6 @@ class ResPartner(models.Model):
 
         return partners
 
-    @api.multi
     def write(self, values):
         res = super(ResPartner, self).write(values)
         if len(self) == 1:

@@ -8,6 +8,7 @@ from odoo import api, fields, models, _, exceptions
 
 _logger = logging.getLogger(__name__)
 
+
 class BadgeUser(models.Model):
     """User having received a badge"""
 
@@ -22,6 +23,9 @@ class BadgeUser(models.Model):
     challenge_id = fields.Many2one('gamification.challenge', string='Challenge originating', help="If this badge was rewarded through a challenge")
     comment = fields.Text('Comment')
     badge_name = fields.Char(related='badge_id.name', string="Badge Name", readonly=False)
+    level = fields.Selection(
+        [('bronze', 'Bronze'), ('silver', 'Silver'), ('gold', 'Gold')],
+        string='Badge Level', related="badge_id.level", store=True, readonly=True)
 
     def _send_badge(self):
         """Send a notification to a user for receiving a badge
@@ -39,7 +43,12 @@ class BadgeUser(models.Model):
                 model=badge_user._name,
                 res_id=badge_user.id,
                 composition_mode='mass_mail',
-                partner_ids=badge_user.user_id.partner_id.ids,
+                # `website_forum` triggers `_cron_update` which triggers this method for template `Received Badge`
+                # for which `badge_user.user_id.partner_id.ids` equals `[8]`, which is then passed to  `self.env['mail.compose.message'].create(...)`
+                # which expects a command list and not a list of ids. In master, this wasn't doing anything, at the end composer.partner_ids was [] and not [8]
+                # I believe this line is useless, it will take the partners to which the template must be send from the template itself (`partner_to`)
+                # The below line was therefore pointless.
+                # partner_ids=badge_user.user_id.partner_id.ids,
             )
 
         return True
@@ -61,12 +70,14 @@ class GamificationBadge(models.Model):
 
     _name = 'gamification.badge'
     _description = 'Gamification Badge'
-    _inherit = ['mail.thread']
+    _inherit = ['mail.thread', 'image.mixin']
 
     name = fields.Char('Badge', required=True, translate=True)
     active = fields.Boolean('Active', default=True)
     description = fields.Text('Description', translate=True)
-    image = fields.Binary("Image", attachment=True, help="This field holds the image used for the badge, limited to 256x256")
+    level = fields.Selection([
+        ('bronze', 'Bronze'), ('silver', 'Silver'), ('gold', 'Gold')],
+        string='Forum Badge Level', default='bronze')
 
     rule_auth = fields.Selection([
             ('everyone', 'Everyone'),
@@ -223,7 +234,7 @@ class GamificationBadge(models.Model):
         :param badge_id: the granted badge id
         :return: integer representing the permission.
         """
-        if self.env.user._is_admin():
+        if self.env.is_admin():
             return self.CAN_GRANT
 
         if self.rule_auth == 'nobody':

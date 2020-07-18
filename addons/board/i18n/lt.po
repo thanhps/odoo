@@ -1,19 +1,19 @@
 # Translation of Odoo Server.
 # This file contains the translation of the following modules:
-# * board
+# 	* board
 # 
 # Translators:
-# Martin Trigaux, 2018
-# UAB "Draugiški sprendimai" <transifex@draugiskisprendimai.lt>, 2018
-# Silvija Butko <silvija.butko@gmail.com>, 2018
+# Martin Trigaux, 2019
+# UAB "Draugiški sprendimai" <transifex@draugiskisprendimai.lt>, 2019
+# Silvija Butko <silvija.butko@gmail.com>, 2019
 # Linas Versada <linaskrisiukenas@gmail.com>, 2019
 # 
 msgid ""
 msgstr ""
-"Project-Id-Version: Odoo Server saas~11.5\n"
+"Project-Id-Version: Odoo Server saas~12.4\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-09-18 09:49+0000\n"
-"PO-Revision-Date: 2018-08-24 09:16+0000\n"
+"POT-Creation-Date: 2019-08-12 11:32+0000\n"
+"PO-Revision-Date: 2019-08-26 09:09+0000\n"
 "Last-Translator: Linas Versada <linaskrisiukenas@gmail.com>, 2019\n"
 "Language-Team: Lithuanian (https://www.transifex.com/odoo/teams/41243/lt/)\n"
 "MIME-Version: 1.0\n"
@@ -24,7 +24,7 @@ msgstr ""
 
 #. module: board
 #. openerp-web
-#: code:addons/board/static/src/xml/board.xml:53
+#: code:addons/board/static/src/xml/board.xml:58
 #, python-format
 msgid ""
 "\"Add to\n"
@@ -35,42 +35,44 @@ msgstr ""
 
 #. module: board
 #. openerp-web
-#: code:addons/board/static/src/xml/board.xml:25
+#: code:addons/board/static/src/xml/board.xml:30
 #, python-format
 msgid "&nbsp;"
 msgstr "&nbsp;"
 
 #. module: board
 #. openerp-web
-#: code:addons/board/static/src/js/favorite_menu.js:103
+#: code:addons/board/static/src/js/add_to_board_menu.js:132
 #, python-format
 msgid "'%s' added to dashboard"
 msgstr "'%s' pridėta į skydelį"
 
 #. module: board
 #. openerp-web
-#: code:addons/board/static/src/xml/board.xml:83
+#: code:addons/board/static/src/xml/board.xml:88
+#: code:addons/board/static/src/xml/board.xml:98
 #, python-format
 msgid "Add"
 msgstr "Pridėti"
 
 #. module: board
 #. openerp-web
-#: code:addons/board/static/src/xml/board.xml:78
+#: code:addons/board/static/src/xml/board.xml:83
+#: code:addons/board/static/src/xml/board.xml:93
 #, python-format
 msgid "Add to my Dashboard"
 msgstr "Pridėti į mano skydelį"
 
 #. module: board
 #. openerp-web
-#: code:addons/board/static/src/js/board_view.js:362
+#: code:addons/board/static/src/js/board_view.js:378
 #, python-format
 msgid "Are you sure you want to remove this item?"
 msgstr "Ar tikrai norite ištrinti šį elementą?"
 
 #. module: board
 #. openerp-web
-#: code:addons/board/static/src/js/board_view.js:439
+#: code:addons/board/static/src/js/board_view.js:432
 #: model:ir.model,name:board.model_board_board
 #, python-format
 msgid "Board"
@@ -78,28 +80,28 @@ msgstr "Lenta"
 
 #. module: board
 #. openerp-web
-#: code:addons/board/static/src/xml/board.xml:7
+#: code:addons/board/static/src/xml/board.xml:11
 #, python-format
 msgid "Change Layout"
 msgstr "Keisti išdėstymą"
 
 #. module: board
 #. openerp-web
-#: code:addons/board/static/src/xml/board.xml:5
+#: code:addons/board/static/src/xml/board.xml:9
 #, python-format
 msgid "Change Layout.."
 msgstr "Keisti išdėstymą.."
 
 #. module: board
 #. openerp-web
-#: code:addons/board/static/src/xml/board.xml:36
+#: code:addons/board/static/src/xml/board.xml:41
 #, python-format
 msgid "Choose dashboard layout"
 msgstr "Pasirinkite skydelio išdėstymą"
 
 #. module: board
 #. openerp-web
-#: code:addons/board/static/src/js/favorite_menu.js:107
+#: code:addons/board/static/src/js/add_to_board_menu.js:136
 #, python-format
 msgid "Could not add filter to dashboard"
 msgstr "Filtro į skydelį pridėti nepavyko"
@@ -111,7 +113,7 @@ msgstr "Rodomas pavadinimas"
 
 #. module: board
 #. openerp-web
-#: code:addons/board/static/src/js/board_view.js:80
+#: code:addons/board/static/src/js/board_view.js:83
 #, python-format
 msgid "Edit Layout"
 msgstr "Keisti išdėstymą"
@@ -128,14 +130,14 @@ msgstr "Paskutinį kartą keista"
 
 #. module: board
 #. openerp-web
-#: code:addons/board/static/src/xml/board.xml:41
+#: code:addons/board/static/src/xml/board.xml:46
 #, python-format
 msgid "Layout"
 msgstr "Išdėstymas"
 
 #. module: board
 #. openerp-web
-#: code:addons/board/static/src/js/board_view.js:43
+#: code:addons/board/static/src/js/board_view.js:46
 #: model:ir.actions.act_window,name:board.open_board_my_dash_action
 #: model:ir.ui.menu,name:board.menu_board_my_dash
 #: model_terms:ir.ui.view,arch_db:board.board_my_dash_view
@@ -145,14 +147,14 @@ msgstr "Mano skydelis"
 
 #. module: board
 #. openerp-web
-#: code:addons/board/static/src/js/favorite_menu.js:104
+#: code:addons/board/static/src/js/add_to_board_menu.js:133
 #, python-format
 msgid "Please refresh your browser for the changes to take effect."
 msgstr "Perkraukite savo naršyklės langą, kad pokyčiai įsigaliotų."
 
 #. module: board
 #. openerp-web
-#: code:addons/board/static/src/xml/board.xml:51
+#: code:addons/board/static/src/xml/board.xml:56
 #, python-format
 msgid ""
 "To add your first report into this dashboard, go to any\n"
@@ -163,7 +165,7 @@ msgstr ""
 
 #. module: board
 #. openerp-web
-#: code:addons/board/static/src/xml/board.xml:55
+#: code:addons/board/static/src/xml/board.xml:60
 #, python-format
 msgid ""
 "You can filter and group data before inserting into the\n"
@@ -174,14 +176,14 @@ msgstr ""
 
 #. module: board
 #. openerp-web
-#: code:addons/board/static/src/xml/board.xml:49
+#: code:addons/board/static/src/xml/board.xml:54
 #, python-format
 msgid "Your personal dashboard is empty"
 msgstr "Jūsų asmeninis skydelis yra tuščias"
 
 #. module: board
 #. openerp-web
-#: code:addons/board/static/src/xml/board.xml:53
+#: code:addons/board/static/src/xml/board.xml:58
 #, python-format
 msgid "in the extended search options."
 msgstr "išplėstiniuose paieškos nustatymuose."

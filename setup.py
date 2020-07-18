@@ -37,10 +37,10 @@ setup(
         'ofxparse',
         'passlib',
         'pillow',  # windows binary http://www.lfd.uci.edu/~gohlke/pythonlibs/
+        'polib',
         'psutil',  # windows binary code.google.com/p/psutil/downloads/list
         'psycopg2 >= 2.2',
         'pydot',
-        'pyldap',  # optional
         'pyparsing',
         'pypdf2',
         'pyserial',
@@ -50,15 +50,16 @@ setup(
         'qrcode',
         'reportlab',  # windows binary pypi.python.org/pypi/reportlab
         'requests',
-        'suds-jurko',
+        'zeep',
         'vatnumber',
         'vobject',
         'werkzeug',
         'xlsxwriter',
         'xlwt',
     ],
-    python_requires='>=3.5',
+    python_requires='>=3.6',
     extras_require={
+        'ldap': ['python-ldap'],
         'SSL': ['pyopenssl'],
     },
     tests_require=[

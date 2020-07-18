@@ -10,7 +10,6 @@ from odoo import tools
 from odoo.addons.http_routing.models.ir_http import url_for
 from odoo.osv import expression
 from odoo.http import request
-from odoo.tools import pycompat
 
 _logger = logging.getLogger(__name__)
 
@@ -24,13 +23,24 @@ class View(models.Model):
     website_id = fields.Many2one('website', ondelete='cascade', string="Website")
     page_ids = fields.One2many('website.page', 'view_id')
     first_page_id = fields.Many2one('website.page', string='Website Page', help='First page linked to this view', compute='_compute_first_page_id')
+    track = fields.Boolean(string='Track', default=False, help="Allow to specify for one page of the website to be trackable or not")
 
-    @api.multi
     def _compute_first_page_id(self):
         for view in self:
             view.first_page_id = self.env['website.page'].search([('view_id', '=', view.id)], limit=1)
 
-    @api.multi
+    def name_get(self):
+        if not self._context.get('display_website') and not self.env.user.has_group('website.group_multi_website'):
+            return super(View, self).name_get()
+
+        res = []
+        for view in self:
+            view_name = view.name
+            if view.website_id:
+                view_name += ' [%s]' % view.website_id.name
+            res.append((view.id, view_name))
+        return res
+
     def write(self, vals):
         '''COW for ir.ui.view. This way editing websites does not impact other
         websites. Also this way newly created websites will only
@@ -53,6 +63,16 @@ class View(models.Model):
             if view.website_id:
                 super(View, view).write(vals)
                 continue
+
+            # Ensure the cache of the pages stay consistent when doing COW.
+            # This is necessary when writing view fields from a page record
+            # because the generic page will put the given values on its cache
+            # but in reality the values were only meant to go on the specific
+            # page. Invalidate all fields and not only those in vals because
+            # other fields could have been changed implicitly too.
+            pages = view.page_ids
+            pages.flush(records=pages)
+            pages.invalidate_cache(ids=pages.ids)
 
             # If already a specific view for this generic view, write on it
             website_specific_view = view.search([
@@ -83,7 +103,8 @@ class View(models.Model):
                     # original tree. Indeed, the order of children 'id' fields
                     # must remain the same so that the inheritance is applied
                     # in the same order in the copied tree.
-                    inherit_child.copy({'inherit_id': website_specific_view.id, 'key': inherit_child.key})
+                    child = inherit_child.copy({'inherit_id': website_specific_view.id, 'key': inherit_child.key})
+                    inherit_child.inherit_children_ids.write({'inherit_id': child.id})
                     inherit_child.unlink()
                 else:
                     # Trigger COW on inheriting views
@@ -93,56 +114,41 @@ class View(models.Model):
 
         return True
 
-    @api.multi
-    def _get_specific_views(self):
-        """ Given a view, return a record set containing all the specific views
-            for that view's key.
-            If the given view is already specific, it will also return itself.
-        """
-        self.ensure_one()
-        domain = [('key', '=', self.key), ('website_id', '!=', False)]
-        return self.with_context(active_test=False).search(domain)
-
-    def _load_records_write(self, values):
-        """ During module update, when updating a generic view, we should also
-            update its specific views (COW'd).
-            Note that we will only update unmodified fields. That will mimic the
-            noupdate behavior on views having an ir.model.data.
-        """
-        if self.type == 'qweb' and not self.website_id:
-            # Update also specific views
-            for cow_view in self._get_specific_views():
-                authorized_vals = {}
-                for key in values:
-                    if cow_view[key] == self[key]:
-                        authorized_vals[key] = values[key]
-                cow_view.write(authorized_vals)
-        super(View, self)._load_records_write(values)
-
-    def _load_records_create(self, values):
-        """ During module install, when creating a generic child view, we should
+    def _create_all_specific_views(self, processed_modules):
+        """ When creating a generic child view, we should
             also create that view under specific view trees (COW'd).
             Top level view (no inherit_id) do not need that behavior as they
             will be shared between websites since there is no specific yet.
         """
-        records = super(View, self)._load_records_create(values)
-        for record in records:
-            if record.type == 'qweb' and record.inherit_id and not record.website_id and not record.inherit_id.website_id:
-                specific_parent_views = record.with_context(active_test=False).search([
-                    ('key', '=', record.inherit_id.key),
-                    ('website_id', '!=', None),
-                ])
-                for specific_parent_view in specific_parent_views:
-                    record.copy({
-                        # Set key to avoid copy() to generate an unique key as
-                        # we want the specific view to have the same key
-                        'key': record.key,
-                        'inherit_id': specific_parent_view.id,
-                        'website_id': specific_parent_view.website_id.id,
-                    })
-        return records
+        # Only for the modules being processed
+        regex = '^(%s)[.]' % '|'.join(processed_modules)
+        # Retrieve the views through a SQl query to avoid ORM queries inside of for loop
+        # Retrieves all the views that are missing their specific counterpart with all the
+        # specific view parent id and their website id in one query
+        query = """
+            SELECT generic.id, ARRAY[array_agg(spec_parent.id), array_agg(spec_parent.website_id)]
+              FROM ir_ui_view generic
+        INNER JOIN ir_ui_view generic_parent ON generic_parent.id = generic.inherit_id
+        INNER JOIN ir_ui_view spec_parent ON spec_parent.key = generic_parent.key
+         LEFT JOIN ir_ui_view specific ON specific.key = generic.key AND specific.website_id = spec_parent.website_id
+             WHERE generic.type='qweb'
+               AND generic.website_id IS NULL
+               AND generic.key ~ %s
+               AND spec_parent.website_id IS NOT NULL
+               AND specific.id IS NULL
+          GROUP BY generic.id
+        """
+        self.env.cr.execute(query, (regex, ))
+        result = dict(self.env.cr.fetchall())
 
-    @api.multi
+        for record in self.browse(result.keys()):
+            specific_parent_view_ids, website_ids = result[record.id]
+            for specific_parent_view_id, website_id in zip(specific_parent_view_ids, website_ids):
+                record.with_context(website_id=website_id).write({
+                    'inherit_id': specific_parent_view_id,
+                })
+        super(View, self)._create_all_specific_views(processed_modules)
+
     def unlink(self):
         '''This implements COU (copy-on-unlink). When deleting a generic page
         website-specific pages will be created so only the current
@@ -160,7 +166,7 @@ class View(models.Model):
 
         specific_views = self.env['ir.ui.view']
         if self and self.pool._init:
-            for view in self:
+            for view in self.filtered(lambda view: not view.website_id):
                 specific_views += view._get_specific_views()
 
         result = super(View, self + specific_views).unlink()
@@ -211,8 +217,8 @@ class View(models.Model):
         return most_specific_views
 
     @api.model
-    def _view_get_inherited_children(self, view, options):
-        extensions = super(View, self)._view_get_inherited_children(view, options)
+    def _view_get_inherited_children(self, view):
+        extensions = super(View, self)._view_get_inherited_children(view)
         return extensions.filter_duplicate()
 
     @api.model
@@ -222,7 +228,7 @@ class View(models.Model):
             :param view_id: either a string xml_id or an integer view_id
             :return: The view record or empty recordset
         '''
-        if isinstance(view_id, pycompat.string_types) or isinstance(view_id, pycompat.integer_types):
+        if isinstance(view_id, str) or isinstance(view_id, int):
             return self.env['website'].viewref(view_id)
         else:
             # It can already be a view object when called by '_views_get()' that is calling '_view_obj'
@@ -251,7 +257,16 @@ class View(models.Model):
         if not self._context.get('website_id'):
             return super(View, self).get_inheriting_views_arch(view_id, model)
 
-        inheriting_views = super(View, self.with_context(active_test=False)).get_inheriting_views_arch(view_id, model)
+        get_inheriting_self = self.with_context(active_test=False)
+        if self.pool._init and not self._context.get('load_all_views'):
+            view = self.browse(view_id)
+            if view.website_id:
+                original_view = view._get_original_view()
+                original_keys = self.with_context(website_id=False)._get_inheriting_views(original_view.id, model).mapped('key')
+                specific_views = self.search([('key', 'in', original_keys), ('website_id', '=', self._context.get('website_id'))])
+                check_view_ids = list(self._context.get('check_view_ids') or ()) + specific_views.ids
+                get_inheriting_self = self.with_context(check_view_ids=check_view_ids)
+        inheriting_views = super(View, get_inheriting_self).get_inheriting_views_arch(view_id, model)
 
         # prefer inactive website-specific views over active generic ones
         inheriting_views = self.browse([view[1] for view in inheriting_views]).filter_duplicate().filtered('active')
@@ -259,7 +274,7 @@ class View(models.Model):
         return [(view.arch, view.id) for view in inheriting_views]
 
     @api.model
-    @tools.ormcache_context('self._uid', 'xml_id', keys=('website_id',))
+    @tools.ormcache_context('self.env.uid', 'self.env.su', 'xml_id', keys=('website_id',))
     def get_view_id(self, xml_id):
         """If a website_id is in the context and the given xml_id is not an int
         then try to get the id of the specific view for that website, but
@@ -272,7 +287,7 @@ class View(models.Model):
         Archived views are ignored (unless the active_test context is set, but
         then the ormcache_context will not work as expected).
         """
-        if 'website_id' in self._context and not isinstance(xml_id, pycompat.integer_types):
+        if 'website_id' in self._context and not isinstance(xml_id, int):
             current_website = self.env['website'].browse(self._context.get('website_id'))
             domain = ['&', ('key', '=', xml_id)] + current_website.website_domain()
 
@@ -283,7 +298,6 @@ class View(models.Model):
             return view.id
         return super(View, self).get_view_id(xml_id)
 
-    @api.multi
     def _get_original_view(self):
         """Given a view, retrieve the original view it was COW'd from.
         The given view might already be the original one. In that case it will
@@ -293,14 +307,13 @@ class View(models.Model):
         domain = [('key', '=', self.key), ('model_data_id', '!=', None)]
         return self.with_context(active_test=False).search(domain, limit=1)  # Useless limit has multiple xmlid should not be possible
 
-    @api.multi
     def render(self, values=None, engine='ir.qweb', minimal_qcontext=False):
         """ Render the template. If website is enabled on request, then extend rendering context with website values. """
         new_context = dict(self._context)
         if request and getattr(request, 'is_frontend', False):
 
             editable = request.website.is_publisher()
-            translatable = editable and self._context.get('lang') != request.website.default_lang_code
+            translatable = editable and self._context.get('lang') != request.website.default_lang_id.code
             editable = not translatable and editable
 
             # in edit mode ir.ui.view will tag nodes
@@ -309,9 +322,14 @@ class View(models.Model):
                     new_context = dict(self._context, inherit_branding=True)
                 elif request.env.user.has_group('website.group_website_publisher'):
                     new_context = dict(self._context, inherit_branding_auto=True)
-            # Fallback incase main_object dont't inherit 'website.seo.metadata'
-            if values and 'main_object' in values and not hasattr(values['main_object'], 'get_website_meta'):
-                values['main_object'].get_website_meta = lambda: {}
+            if values and 'main_object' in values:
+                if request.env.user.has_group('website.group_website_publisher'):
+                    func = getattr(values['main_object'], 'get_backend_menu_id', False)
+                    values['backend_menu_id'] = func and func() or self.env.ref('website.menu_website_configuration').id
+
+                # Fallback incase main_object dont't inherit 'website.seo.metadata'
+                if not hasattr(values['main_object'], 'get_website_meta'):
+                    values['main_object'].get_website_meta = lambda: {}
 
         if self._context != new_context:
             self = self.with_context(new_context)
@@ -330,33 +348,33 @@ class View(models.Model):
             translatable = editable and self._context.get('lang') != request.env['ir.http']._get_default_lang().code
             editable = not translatable and editable
 
-            if 'main_object' not in qcontext:
-                qcontext['main_object'] = self
-
             cur = Website.get_current_website()
-            qcontext['multi_website_websites_current'] = {'website_id': cur.id, 'name': cur.name, 'domain': cur.domain}
-            qcontext['multi_website_websites'] = [
-                {'website_id': website.id, 'name': website.name, 'domain': website.domain}
-                for website in Website.search([]) if website != cur
-            ]
+            if self.env.user.has_group('website.group_website_publisher') and self.env.user.has_group('website.group_multi_website'):
+                qcontext['multi_website_websites_current'] = {'website_id': cur.id, 'name': cur.name, 'domain': cur._get_http_domain()}
+                qcontext['multi_website_websites'] = [
+                    {'website_id': website.id, 'name': website.name, 'domain': website._get_http_domain()}
+                    for website in Website.search([]) if website != cur
+                ]
 
-            cur_company = self.env.user.company_id
-            qcontext['multi_website_companies_current'] = {'company_id': cur_company.id, 'name': cur_company.name}
-            qcontext['multi_website_companies'] = [
-                {'company_id': comp.id, 'name': comp.name}
-                for comp in self.env.user.company_ids if comp != cur_company
-            ]
+                cur_company = self.env.company
+                qcontext['multi_website_companies_current'] = {'company_id': cur_company.id, 'name': cur_company.name}
+                qcontext['multi_website_companies'] = [
+                    {'company_id': comp.id, 'name': comp.name}
+                    for comp in self.env.user.company_ids if comp != cur_company
+                ]
 
             qcontext.update(dict(
                 self._context.copy(),
+                main_object=self,
                 website=request.website,
                 url_for=url_for,
                 res_company=request.website.company_id.sudo(),
                 default_lang_code=request.env['ir.http']._get_default_lang().code,
-                languages=request.env['ir.http']._get_language_codes(),
+                languages=request.env['res.lang'].get_available(),
                 translatable=translatable,
                 editable=editable,
-                menu_data=self.env['ir.ui.menu'].load_menus_root() if request.website.is_user() else None,
+                # retrocompatibility, remove me in master
+                menu_data={'children': []} if request.website.is_user() else None,
             ))
 
         return qcontext
@@ -365,12 +383,11 @@ class View(models.Model):
     def get_default_lang_code(self):
         website_id = self.env.context.get('website_id')
         if website_id:
-            lang_code = self.env['website'].browse(website_id).default_lang_code
+            lang_code = self.env['website'].browse(website_id).default_lang_id.code
             return lang_code
         else:
             return super(View, self).get_default_lang_code()
 
-    @api.multi
     def redirect_to_page_manager(self):
         return {
             'type': 'ir.actions.act_url',
@@ -396,7 +413,6 @@ class View(models.Model):
         if not self._context.get('website_id'):
             super(View, self)._set_noupdate()
 
-    @api.multi
     def save(self, value, xpath=None):
         self.ensure_one()
         current_website = self.env['website'].get_current_website()

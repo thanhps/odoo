@@ -28,7 +28,7 @@ var FieldPad = AbstractField.extend({
                 FieldPad.prototype.isPadConfigured = result;
             });
         }
-        return $.when();
+        return this._super.apply(this, arguments);
     },
     /**
      * @override
@@ -37,7 +37,7 @@ var FieldPad = AbstractField.extend({
         if (!this.isPadConfigured) {
             this.$(".oe_unconfigured").removeClass('d-none');
             this.$(".oe_configured").addClass('d-none');
-            return;
+            return Promise.resolve();
         }
         if (this.mode === 'edit' && _.str.startsWith(this.value, 'http')) {
             this.url = this.value;
@@ -156,7 +156,7 @@ var FieldPad = AbstractField.extend({
                     .removeClass('oe_pad_loading')
                     .html('<div class="oe_pad_readonly"><div>');
                 self.$('.oe_pad_readonly').html(data);
-            }).fail(function () {
+            }).guardedCatch(function () {
                 self.$('.oe_pad_content').text(_t('Unable to load pad'));
             });
         } else {

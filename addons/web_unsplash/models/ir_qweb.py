@@ -8,7 +8,9 @@ class Image(models.AbstractModel):
 
     @api.model
     def from_html(self, model, field, element):
-        url = element.find('img').get('src')
+        if element.find('.//img') is None:
+            return False
+        url = element.find('.//img').get('src')
         url_object = urls.url_parse(url)
 
         if url_object.path.startswith('/unsplash/'):
@@ -17,8 +19,10 @@ class Image(models.AbstractModel):
                 res_id = int(res_id)
                 res_model = model._name
                 attachment = self.env['ir.attachment'].search([
+                    '&', '|', '&',
                     ('res_model', '=', res_model),
                     ('res_id', '=', res_id),
+                    ('public', '=', True),
                     ('url', '=', url_object.path),
                 ], limit=1)
                 return attachment.datas

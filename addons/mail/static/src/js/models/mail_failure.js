@@ -13,6 +13,7 @@ var MailFailure = Class.extend(Mixins.EventDispatcherMixin, ServicesMixin, {
     /**
      * @param {mail.Manager} parent
      * @param {Object} data
+     * @param {string} data.failure_type
      * @param {string} data.last_message_date
      * @param {integer} data.message_id
      * @param {string} data.model
@@ -29,6 +30,7 @@ var MailFailure = Class.extend(Mixins.EventDispatcherMixin, ServicesMixin, {
 
         this._documentID = data.res_id;
         this._documentModel = data.model;
+        this._failureType = data.failure_type || 'mail';
         this._lastMessageDate = moment(); // by default: current datetime
         this._messageID = data.message_id;
         this._modelName = data.model_name;
@@ -63,6 +65,14 @@ var MailFailure = Class.extend(Mixins.EventDispatcherMixin, ServicesMixin, {
         return this._documentID;
     },
     /**
+     * Get the type of failure of this mail failure.
+     *
+     * @returns {string}
+     */
+    getFailureType: function () {
+        return this._failureType;
+    },
+    /**
      * Get the ID of the message that this mail failure is related to.
      *
      * @returns {integer}
@@ -77,7 +87,7 @@ var MailFailure = Class.extend(Mixins.EventDispatcherMixin, ServicesMixin, {
      */
     getPreview: function () {
         var preview = {
-            body: _t("An error occured when sending an email"),
+            body: _t("An error occurred when sending an email"),
             date: this._lastMessageDate,
             documentID: this._documentID,
             documentModel: this._documentModel,

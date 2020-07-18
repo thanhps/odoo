@@ -55,6 +55,7 @@ var ThreadWidget = Widget.extend({
      */
     init: function (parent, options) {
         this._super.apply(this, arguments);
+        this.attachments = [];
         // options when the thread is enabled (e.g. can send message,
         // interact on messages, etc.)
         this._enabledOptions = _.defaults(options || {}, {
@@ -68,6 +69,7 @@ var ThreadWidget = Widget.extend({
             displayEmailIcons: true,
             displayReplyIcons: false,
             loadMoreOnScroll: false,
+            hasMessageAttachmentDeletable: false,
         });
         // options when the thread is disabled
         this._disabledOptions = {
@@ -81,10 +83,14 @@ var ThreadWidget = Widget.extend({
             displayEmailIcons: false,
             displayReplyIcons: false,
             loadMoreOnScroll: this._enabledOptions.loadMoreOnScroll,
+            hasMessageAttachmentDeletable: false,
         };
         this._selectedMessageID = null;
         this._currentThreadID = null;
         this._messageMailPopover = null;
+        this._messageSeenPopover = null;
+        // used to track popover IDs to destroy on re-rendering of popovers
+        this._openedSeenPopoverIDs = [];
     },
     /**
      * The message mail popover may still be shown at this moment. If we do not
@@ -97,6 +103,10 @@ var ThreadWidget = Widget.extend({
         if (this._messageMailPopover) {
             this._messageMailPopover.popover('hide');
         }
+        if (this._messageSeenPopover) {
+            this._messageSeenPopover.popover('hide');
+        }
+        this._destroyOpenSeenPopoverIDs();
         this._super();
     },
     /**
@@ -188,12 +198,6 @@ var ThreadWidget = Widget.extend({
             dateFormat: time.getLangDatetimeFormat(),
         }));
 
-        // must be after mail.widget.Thread rendering, so that there is the
-        // DOM element for the 'is typing' notification bar
-        if (thread.hasTypingNotification()) {
-            this.renderTypingNotificationBar(thread);
-        }
-
         _.each(messages, function (message) {
             var $message = self.$('.o_thread_message[data-message-id="'+ message.getID() +'"]');
             $message.find('.o_mail_timestamp').data('date', message.getDate());
@@ -212,6 +216,17 @@ var ThreadWidget = Widget.extend({
         }
 
         this._renderMessageMailPopover(messages);
+        if (thread.hasSeenFeature()) {
+            this._renderMessageSeenPopover(thread, messages);
+        }
+    },
+
+    /**
+     * Render thread widget when loading, i.e. when messaging is not yet ready.
+     * @see /mail/init_messaging
+     */
+    renderLoading: function () {
+        this.$el.html(QWeb.render('mail.widget.ThreadLoading'));
     },
 
     //--------------------------------------------------------------------------
@@ -245,38 +260,16 @@ var ThreadWidget = Widget.extend({
      */
     removeMessageAndRender: function (messageID, thread, options) {
         var self = this;
-        var done = $.Deferred();
-        this.$('.o_thread_message[data-message-id="' + messageID + '"]')
+        return new Promise(function (resolve, reject) {
+            self.$('.o_thread_message[data-message-id="' + messageID + '"]')
             .fadeOut({
                 done: function () {
                     self.render(thread, options);
-                    done.resolve();
+                    resolve();
                 },
                 duration: 200,
             });
-        return done;
-    },
-    /**
-     * Render the 'is typing...' text on the typing notification bar of the
-     * thread. This is called when there is a change in the list of users
-     * typing something on this thread.
-     *
-     * @param {mail.model.AbstractThread} thread with ThreadTypingMixin
-     */
-    renderTypingNotificationBar: function (thread) {
-        if (this._currentThreadID === thread.getID()) {
-            var shouldScrollToBottomAfterRendering = this.isAtBottom();
-
-            // typing notification bar rendering
-            var $typingBar = this.$('.o_thread_typing_notification_bar');
-            var text = thread.getTypingMembersToText();
-            $typingBar.toggleClass('o_hidden', !text); // hide if no text, because of padding
-            $typingBar.text(text);
-
-            if (shouldScrollToBottomAfterRendering) {
-                this.scrollToBottom();
-            }
-        }
+        });
     },
     /**
      * Scroll to the bottom of the thread
@@ -292,7 +285,7 @@ var ThreadWidget = Widget.extend({
      * @param {boolean} [options.onlyIfNecessary]
      */
     scrollToMessage: function (options) {
-        var $target = this.$('.o_thread_message[data-message-id="' + options.msgID + '"]');
+        var $target = this.$('.o_thread_message[data-message-id="' + options.messageID + '"]');
         if (options.onlyIfNecessary) {
             var delta = $target.parent().height() - $target.height();
             var offset = delta < 0 ?
@@ -340,6 +333,15 @@ var ThreadWidget = Widget.extend({
     // Private
     //--------------------------------------------------------------------------
 
+    /**
+     * @private
+     */
+    _destroyOpenSeenPopoverIDs: function () {
+        _.each(this._openedSeenPopoverIDs, function (popoverID) {
+            $('#' + popoverID).remove();
+        });
+        this._openedSeenPopoverIDs = [];
+    },
     /**
      * Modifies $element to add the 'read more/read less' functionality
      * All element nodes with 'data-o-mail-quote' attribute are concerned.
@@ -477,6 +479,46 @@ var ThreadWidget = Widget.extend({
                 });
                 return QWeb.render('mail.widget.Thread.Message.MailTooltip', {
                     data: message.hasCustomerEmailData() ? message.getCustomerEmailData() : [],
+                });
+            },
+        });
+    },
+    /**
+     * Render the popover when mouse hovering on the seen icon of a message
+     * in the thread. Only seen icons in non-squashed message have popover,
+     * because squashed messages hides this icon on message mouseover.
+     *
+     * @private
+     * @param {mail.model.AbstractThread} thread with thread seen mixin,
+     *   @see {mail.model.ThreadSeenMixin}
+     * @param {mail.model.Message[]} messages list of messages in the
+     *   rendered thread.
+     */
+    _renderMessageSeenPopover: function (thread, messages) {
+        var self = this;
+        this._destroyOpenSeenPopoverIDs();
+        if (this._messageSeenPopover) {
+            this._messageSeenPopover.popover('hide');
+        }
+        if (!this.$('.o_thread_message_core .o_mail_thread_message_seen_icon').length) {
+            return;
+        }
+        this._messageSeenPopover = this.$('.o_thread_message_core .o_mail_thread_message_seen_icon').popover({
+            html: true,
+            boundary: 'viewport',
+            placement: 'auto',
+            trigger: 'hover',
+            offset: '0, 1',
+            content: function () {
+                var $this = $(this);
+                self._openedSeenPopoverIDs.push($this.attr('aria-describedby'));
+                var messageID = $this.data('message-id');
+                var message = _.find(messages, function (message) {
+                    return message.getID() === messageID;
+                });
+                return QWeb.render('mail.widget.Thread.Message.SeenIconPopoverContent', {
+                    thread: thread,
+                    message: message,
                 });
             },
         });

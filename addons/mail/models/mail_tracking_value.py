@@ -3,19 +3,20 @@
 
 from datetime import datetime
 
-from odoo import api, fields, models, tools
+from odoo import api, fields, models
 
 
 class MailTracking(models.Model):
     _name = 'mail.tracking.value'
     _description = 'Mail Tracking Value'
     _rec_name = 'field'
-    _order = 'track_sequence asc'
+    _order = 'tracking_sequence asc'
 
     # TDE CLEANME: why not a m2o to ir model field ?
     field = fields.Char('Changed Field', required=True, readonly=1)
     field_desc = fields.Char('Field Description', required=True, readonly=1)
     field_type = fields.Char('Field Type')
+    field_groups = fields.Char(compute='_compute_field_groups')
 
     old_value_integer = fields.Integer('Old Value Integer', readonly=1)
     old_value_float = fields.Float('Old Value Float', readonly=1)
@@ -33,12 +34,18 @@ class MailTracking(models.Model):
 
     mail_message_id = fields.Many2one('mail.message', 'Message ID', required=True, index=True, ondelete='cascade')
 
-    track_sequence = fields.Integer('Tracking field sequence', readonly=1, default=100)
+    tracking_sequence = fields.Integer('Tracking field sequence', readonly=1, default=100)
+
+    def _compute_field_groups(self):
+        for tracking in self:
+            model = self.env[tracking.mail_message_id.model]
+            field = model._fields.get(tracking.field)
+            tracking.field_groups = field.groups if field else 'base.group_system'
 
     @api.model
-    def create_tracking_values(self, initial_value, new_value, col_name, col_info, track_sequence):
+    def create_tracking_values(self, initial_value, new_value, col_name, col_info, tracking_sequence):
         tracked = True
-        values = {'field': col_name, 'field_desc': col_info['string'], 'field_type': col_info['type'], 'track_sequence': track_sequence}
+        values = {'field': col_name, 'field_desc': col_info['string'], 'field_type': col_info['type'], 'tracking_sequence': tracking_sequence}
 
         if col_info['type'] in ['integer', 'float', 'char', 'text', 'datetime', 'monetary']:
             values.update({
@@ -74,7 +81,6 @@ class MailTracking(models.Model):
             return values
         return {}
 
-    @api.multi
     def get_display_value(self, type):
         assert type in ('new', 'old')
         result = []
@@ -99,12 +105,10 @@ class MailTracking(models.Model):
                 result.append(record['%s_value_char' % type])
         return result
 
-    @api.multi
     def get_old_display_value(self):
         # grep : # old_value_integer | old_value_datetime | old_value_char
         return self.get_display_value('old')
 
-    @api.multi
     def get_new_display_value(self):
         # grep : # new_value_integer | new_value_datetime | new_value_char
         return self.get_display_value('new')

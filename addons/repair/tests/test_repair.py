@@ -59,7 +59,7 @@ class TestRepair(AccountingTestCase):
             'price_unit': price_unit,
             'repair_id': repair_id,
             'location_id': self.env.ref('stock.stock_location_stock').id,
-            'location_dest_id': self.env.ref('stock.location_production').id,
+            'location_dest_id': product_to_add.property_stock_production.id,
         })
 
     def _create_simple_fee(self, repair_id=False, qty=0.0, price_unit=0.0):
@@ -77,7 +77,7 @@ class TestRepair(AccountingTestCase):
         repair = self._create_simple_repair_order('after_repair')
         self._create_simple_operation(repair_id=repair.id, qty=1.0, price_unit=50.0)
         # I confirm Repair order taking Invoice Method 'After Repair'.
-        repair.sudo(self.res_repair_user.id).action_repair_confirm()
+        repair.with_user(self.res_repair_user).action_repair_confirm()
 
         # I check the state is in "Confirmed".
         self.assertEqual(repair.state, "confirmed", 'Repair order should be in "Confirmed" state.')
@@ -107,7 +107,7 @@ class TestRepair(AccountingTestCase):
     def test_01_repair_b4inv(self):
         repair = self._create_simple_repair_order('b4repair')
         # I confirm Repair order for Invoice Method 'Before Repair'.
-        repair.sudo(self.res_repair_user.id).action_repair_confirm()
+        repair.with_user(self.res_repair_user).action_repair_confirm()
 
         # I click on "Create Invoice" button of this wizard to make invoice.
         repair.action_repair_invoice_create()
@@ -128,7 +128,7 @@ class TestRepair(AccountingTestCase):
         self.assertEqual(repair.amount_total, 26, "Amount_total should be 26")
 
         # I confirm Repair order for Invoice Method 'No Invoice'.
-        repair.sudo(self.res_repair_user.id).action_repair_confirm()
+        repair.with_user(self.res_repair_user).action_repair_confirm()
 
         # I start the repairing process by clicking on "Start Repair" button for Invoice Method 'No Invoice'.
         repair.action_repair_start()
@@ -145,7 +145,7 @@ class TestRepair(AccountingTestCase):
                          'Repaired product went to the wrong location')
         self.assertEqual(repair.operations.move_id.location_id.id, self.env.ref('stock.stock_location_stock').id,
                          'Consumed product was taken in the wrong location')
-        self.assertEqual(repair.operations.move_id.location_dest_id.id, self.env.ref('stock.location_production').id,
+        self.assertEqual(repair.operations.move_id.location_dest_id.id, self.env.ref('product.product_product_5').property_stock_production.id,
                          'Consumed product went to the wrong location')
 
         # I define Invoice Method 'No Invoice' option in this repair order.

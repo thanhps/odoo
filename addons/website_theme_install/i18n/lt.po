@@ -1,22 +1,21 @@
 # Translation of Odoo Server.
 # This file contains the translation of the following modules:
-# * website_theme_install
+# 	* website_theme_install
 # 
 # Translators:
-# Martin Trigaux, 2018
-# UAB "Draugiški sprendimai" <transifex@draugiskisprendimai.lt>, 2018
-# Anatolij, 2018
-# Audrius Palenskis <audrius.palenskis@gmail.com>, 2018
-# Rolandas <info@paninfo.lt>, 2018
-# digitouch UAB <digitouchagencyeur@gmail.com>, 2018
+# Martin Trigaux, 2019
+# UAB "Draugiški sprendimai" <transifex@draugiskisprendimai.lt>, 2019
+# Anatolij, 2019
+# Audrius Palenskis <audrius.palenskis@gmail.com>, 2019
+# digitouch UAB <digitouchagencyeur@gmail.com>, 2019
 # Linas Versada <linaskrisiukenas@gmail.com>, 2019
 # 
 msgid ""
 msgstr ""
-"Project-Id-Version: Odoo Server 12.0\n"
+"Project-Id-Version: Odoo Server 13.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-12-19 08:21+0000\n"
-"PO-Revision-Date: 2018-08-24 09:35+0000\n"
+"POT-Creation-Date: 2019-10-18 09:48+0000\n"
+"PO-Revision-Date: 2019-08-26 09:16+0000\n"
 "Last-Translator: Linas Versada <linaskrisiukenas@gmail.com>, 2019\n"
 "Language-Team: Lithuanian (https://www.transifex.com/odoo/teams/41243/lt/)\n"
 "MIME-Version: 1.0\n"
@@ -56,7 +55,7 @@ msgid "Author"
 msgstr "Autorius"
 
 #. module: website_theme_install
-#: selection:theme.ir.ui.view,mode:0
+#: model:ir.model.fields.selection,name:website_theme_install.selection__theme_ir_ui_view__mode__primary
 msgid "Base view"
 msgstr "Bazinė peržiūra"
 
@@ -122,7 +121,7 @@ msgid "Display Name"
 msgstr "Rodomas pavadinimas"
 
 #. module: website_theme_install
-#: selection:theme.ir.ui.view,mode:0
+#: model:ir.model.fields.selection,name:website_theme_install.selection__theme_ir_ui_view__mode__extension
 msgid "Extension View"
 msgstr "Plėtinio peržiūra"
 
@@ -152,6 +151,7 @@ msgstr "Yra įdiegta dabartinėje svetainėje"
 
 #. module: website_theme_install
 #: model:ir.model.fields,field_description:website_theme_install.field_ir_attachment__key
+#: model:ir.model.fields,field_description:website_theme_install.field_mrp_document__key
 #: model:ir.model.fields,field_description:website_theme_install.field_theme_ir_attachment__key
 #: model:ir.model.fields,field_description:website_theme_install.field_theme_ir_ui_view__key
 msgid "Key"
@@ -212,7 +212,7 @@ msgstr "Modulis"
 #: model:ir.model.fields,field_description:website_theme_install.field_theme_ir_ui_view__name
 #: model:ir.model.fields,field_description:website_theme_install.field_theme_website_menu__name
 msgid "Name"
-msgstr "Pavadinimas"
+msgstr "Vardas"
 
 #. module: website_theme_install
 #: model:ir.model.fields,field_description:website_theme_install.field_theme_website_menu__new_window
@@ -277,6 +277,7 @@ msgstr "Seka"
 
 #. module: website_theme_install
 #: model:ir.model.fields,help:website_theme_install.field_ir_attachment__key
+#: model:ir.model.fields,help:website_theme_install.field_mrp_document__key
 msgid ""
 "Technical field used to resolve multiple attachments in a multi-website "
 "environment."
@@ -297,6 +298,7 @@ msgstr "Temos prisegtukai"
 #. module: website_theme_install
 #: model:ir.model.fields,field_description:website_theme_install.field_ir_attachment__theme_template_id
 #: model:ir.model.fields,field_description:website_theme_install.field_ir_ui_view__theme_template_id
+#: model:ir.model.fields,field_description:website_theme_install.field_mrp_document__theme_template_id
 #: model:ir.model.fields,field_description:website_theme_install.field_website_menu__theme_template_id
 #: model:ir.model.fields,field_description:website_theme_install.field_website_page__theme_template_id
 msgid "Theme Template"
@@ -332,7 +334,7 @@ msgstr "Atnaujinti temą"
 #: model:ir.model.fields,field_description:website_theme_install.field_theme_website_menu__url
 #: model:ir.model.fields,field_description:website_theme_install.field_theme_website_page__url
 msgid "Url"
-msgstr "Url"
+msgstr "URL"
 
 #. module: website_theme_install
 #: model_terms:ir.ui.view,arch_db:website_theme_install.theme_view_kanban
@@ -343,7 +345,7 @@ msgstr "Naudoti šią temą"
 #: model:ir.model,name:website_theme_install.model_ir_ui_view
 #: model:ir.model.fields,field_description:website_theme_install.field_theme_website_page__view_id
 msgid "View"
-msgstr "Žiūrėti"
+msgstr "Rodinys"
 
 #. module: website_theme_install
 #: model:ir.model.fields,field_description:website_theme_install.field_theme_ir_ui_view__copy_ids
@@ -381,12 +383,12 @@ msgid "install a theme"
 msgstr "Įdiegti temą"
 
 #. module: website_theme_install
-#: selection:theme.ir.ui.view,inherit_id:0
+#: model:ir.model.fields.selection,name:website_theme_install.selection__theme_ir_ui_view__inherit_id__ir_ui_view
 msgid "ir.ui.view"
 msgstr "ir.ui.view"
 
 #. module: website_theme_install
-#: selection:theme.ir.ui.view,inherit_id:0
+#: model:ir.model.fields.selection,name:website_theme_install.selection__theme_ir_ui_view__inherit_id__theme_ir_ui_view
 msgid "theme.ir.ui.view"
 msgstr "theme.ir.ui.view"
 

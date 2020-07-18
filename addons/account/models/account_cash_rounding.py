@@ -2,6 +2,7 @@
 
 from odoo import models, fields, api, _
 from odoo.tools import float_round
+from odoo.exceptions import ValidationError
 
 
 class AccountCashRounding(models.Model):
@@ -24,8 +25,14 @@ class AccountCashRounding(models.Model):
     rounding_method = fields.Selection(string='Rounding Method', required=True,
         selection=[('UP', 'UP'), ('DOWN', 'DOWN'), ('HALF-UP', 'HALF-UP')],
         default='HALF-UP', help='The tie-breaking rule used for float rounding operations')
+    company_id = fields.Many2one('res.company', related='account_id.company_id')
 
-    @api.multi
+    @api.constrains('rounding')
+    def validate_rounding(self):
+        for record in self:
+            if record.rounding < 0:
+                raise ValidationError(_("Please set a positive rounding value."))
+
     def round(self, amount):
         """Compute the rounding on the amount passed as parameter.
 
@@ -34,7 +41,6 @@ class AccountCashRounding(models.Model):
         """
         return float_round(amount, precision_rounding=self.rounding, rounding_method=self.rounding_method)
 
-    @api.multi
     def compute_difference(self, currency, amount):
         """Compute the difference between the base_amount and the amount after rounding.
         For example, base_amount=23.91, after rounding=24.00, the result will be 0.09.
@@ -45,3 +51,9 @@ class AccountCashRounding(models.Model):
         """
         difference = self.round(amount) - amount
         return currency.round(difference)
+
+    def _get_profit_account_id(self):
+        return self.account_id
+
+    def _get_loss_account_id(self):
+        return self.account_id

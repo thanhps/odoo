@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo.tools import pycompat, float_is_zero
+from odoo.tools import float_is_zero
 from .test_sale_common import TestCommonSaleNoChart
+from odoo.tests import Form
 
 
 class TestSaleToInvoice(TestCommonSaleNoChart):
@@ -77,7 +78,7 @@ class TestSaleToInvoice(TestCommonSaleNoChart):
         # Let's do an invoice for a deposit of 100
         payment = self.env['sale.advance.payment.inv'].with_context(self.context).create({
             'advance_payment_method': 'fixed',
-            'amount': 100,
+            'fixed_amount': 100,
             'deposit_account_id': self.account_income.id
         })
         payment.create_invoices()
@@ -92,14 +93,13 @@ class TestSaleToInvoice(TestCommonSaleNoChart):
 
         # Let's do an invoice with refunds
         payment = self.env['sale.advance.payment.inv'].with_context(self.context).create({
-            'advance_payment_method': 'all',
             'deposit_account_id': self.account_income.id
         })
         payment.create_invoices()
 
         self.assertEquals(len(self.sale_order.invoice_ids), 2, 'Invoice should be created for the SO')
 
-        invoice = self.sale_order.invoice_ids[0]
+        invoice = self.sale_order.invoice_ids.sorted()[0]
         self.assertEquals(len(invoice.invoice_line_ids), len(self.sale_order.order_line), 'All lines should be invoiced')
         self.assertEquals(invoice.amount_total, self.sale_order.amount_total - downpayment_line.price_unit, 'Downpayment should be applied')
 
@@ -135,14 +135,14 @@ class TestSaleToInvoice(TestCommonSaleNoChart):
         })
         payment.create_invoices()
         invoice = self.sale_order.invoice_ids[0]
-        invoice.action_invoice_open()
+        invoice.post()
 
         # Check discount appeared on both SO lines and invoice lines
-        for line, inv_line in pycompat.izip(self.sale_order.order_line, invoice.invoice_line_ids):
+        for line, inv_line in zip(self.sale_order.order_line, invoice.invoice_line_ids):
             self.assertEquals(line.discount, inv_line.discount, 'Discount on lines of order and invoice should be same')
 
-    def test_invoice_refund(self):
-        """ Test invoice with a refund and check customer invoices credit note is created from respective invoice """
+    def test_invoice(self):
+        """ Test create and invoice from the SO, and check qty invoice/to invoice, and the related amounts """
         # lines are in draft
         for line in self.sale_order.order_line:
             self.assertTrue(float_is_zero(line.untaxed_amount_to_invoice, precision_digits=2), "The amount to invoice should be zero, as the line is in draf state")
@@ -173,8 +173,12 @@ class TestSaleToInvoice(TestCommonSaleNoChart):
         invoice = self.sale_order.invoice_ids[0]
 
         # Update quantity of an invoice lines
-        invoice.invoice_line_ids[0].write({'quantity': 3.0})  # product ordered: from 5 to 3
-        invoice.invoice_line_ids[1].write({'quantity': 2.0})  # service ordered: from 3 to 2
+        move_form = Form(invoice)
+        with move_form.invoice_line_ids.edit(0) as line_form:
+            line_form.quantity = 3.0
+        with move_form.invoice_line_ids.edit(1) as line_form:
+            line_form.quantity = 2.0
+        invoice = move_form.save()
 
         # amount to invoice / invoiced should not have changed (amounts take only confirmed invoice into account)
         for line in self.sale_order.order_line:
@@ -193,7 +197,7 @@ class TestSaleToInvoice(TestCommonSaleNoChart):
                 self.assertEquals(line.untaxed_amount_to_invoice, line.product_uom_qty * line.price_unit, "The amount to invoice should the total of the line, as the line is confirmed (no confirmed invoice)")
                 self.assertEquals(line.untaxed_amount_invoiced, 0.0, "The invoiced amount should be zero, as no invoice are validated for now")
 
-        invoice.action_invoice_open()
+        invoice.post()
 
         # Check quantity to invoice on SO lines
         for line in self.sale_order.order_line:
@@ -212,59 +216,112 @@ class TestSaleToInvoice(TestCommonSaleNoChart):
                 self.assertEquals(line.untaxed_amount_to_invoice, line.price_unit * line.qty_to_invoice, "Amount to invoice is now set as qty to invoice * unit price since no price change on invoice, for ordered products")
                 self.assertEquals(line.untaxed_amount_invoiced, line.price_unit * line.qty_invoiced, "Amount invoiced is now set as qty invoiced * unit price since no price change on invoice, for ordered products")
 
-        # Make a credit note
-        credit_note_wizard = self.env['account.invoice.refund'].with_context({'active_ids': [invoice.id], 'active_id': invoice.id}).create({
-            'filter_refund': 'modify',  # this is the only mode for which the SO line is linked to the refund (https://github.com/odoo/odoo/commit/e680f29560ac20133c7af0c6364c6ef494662eac)
-            'description': 'reason test',
+    def test_invoice_with_sections(self):
+        """ Test create and invoice with sections from the SO, and check qty invoice/to invoice, and the related amounts """
+
+        sale_order = self.env['sale.order'].with_context(tracking_disable=True).create({
+            'partner_id': self.partner_customer_usd.id,
+            'partner_invoice_id': self.partner_customer_usd.id,
+            'partner_shipping_id': self.partner_customer_usd.id,
+            'pricelist_id': self.pricelist_usd.id,
         })
-        credit_note_wizard.invoice_refund()
-        invoice_2 = self.sale_order.invoice_ids.sorted(key=lambda inv: inv.id, reverse=False)[-1]  # the first invoice, its refund, and the new invoice
 
-        # Check invoice's type and number
-        self.assertEquals(invoice_2.type, 'out_invoice', 'The last created invoiced should be a customer invoice')
-        self.assertEquals(invoice_2.state, 'draft', 'Last Customer invoices should be in draft')
+        SaleOrderLine = self.env['sale.order.line'].with_context(tracking_disable=True)
+        SaleOrderLine.create({
+            'name': 'Section',
+            'display_type': 'line_section',
+            'order_id': sale_order.id,
+        })
+        sol_prod_deliver = SaleOrderLine.create({
+            'name': self.product_order.name,
+            'product_id': self.product_order.id,
+            'product_uom_qty': 5,
+            'product_uom': self.product_order.uom_id.id,
+            'price_unit': self.product_order.list_price,
+            'order_id': sale_order.id,
+            'tax_id': False,
+        })
 
-        # At this time, the invoice 1 and its refund are confirmed, so the amounts invoiced are zero. The third invoice
-        # (2nd customer inv) is in draft state.
-        for line in self.sale_order.order_line:
-            if line.product_id.invoice_policy == 'delivery':
-                self.assertEquals(line.qty_to_invoice, 0.0, "Quantity to invoice should be same as ordered quantity")
-                self.assertEquals(line.qty_invoiced, 0.0, "Invoiced quantity should be zero as no any invoice created for SO")
-                self.assertEquals(line.untaxed_amount_to_invoice, 0.0, "The amount to invoice should be zero, as the line based on delivered quantity")
-                self.assertEquals(line.untaxed_amount_invoiced, 0.0, "The invoiced amount should be zero, as the line based on delivered quantity")
-            else:
-                if line == self.sol_prod_order:
-                    self.assertEquals(line.qty_to_invoice, 2.0, "The qty to invoice does not change when confirming the new invoice (2)")
-                    self.assertEquals(line.qty_invoiced, 3.0, "The ordered (prod) sale line does not change on invoice 2 confirmation")
-                    self.assertEquals(line.untaxed_amount_to_invoice, line.price_unit * 5, "Amount to invoice is now set as qty to invoice * unit price since no price change on invoice, for ordered products")
-                    self.assertEquals(line.untaxed_amount_invoiced, 0.0, "Amount invoiced is zero as the invoice 1 and its refund are reconcilied")
-                else:
-                    self.assertEquals(line.qty_to_invoice, 1.0, "The qty to invoice does not change when confirming the new invoice (2)")
-                    self.assertEquals(line.qty_invoiced, 2.0, "The ordered (serv) sale line does not change on invoice 2 confirmation")
-                    self.assertEquals(line.untaxed_amount_to_invoice, line.price_unit * 3, "Amount to invoice is now set as unit price * ordered qty - refund qty) even if the ")
-                    self.assertEquals(line.untaxed_amount_invoiced, 0.0, "Amount invoiced is zero as the invoice 1 and its refund are reconcilied")
+        # Confirm the SO
+        sale_order.action_confirm()
 
-        # Change unit of ordered product on refund lines
-        invoice_2.invoice_line_ids.filtered(lambda invl: invl.product_id == self.sol_prod_order.product_id).write({'price_unit': 100})
-        invoice_2.invoice_line_ids.filtered(lambda invl: invl.product_id == self.sol_serv_order.product_id).write({'price_unit': 50})
+        sol_prod_deliver.write({'qty_delivered': 5.0})
 
-        # Validate the refund
-        invoice_2.action_invoice_open()
+        # Context
+        self.context = {
+            'active_model': 'sale.order',
+            'active_ids': [sale_order.id],
+            'active_id': sale_order.id,
+            'default_journal_id': self.journal_sale.id,
+        }
 
-        for line in self.sale_order.order_line:
-            if line.product_id.invoice_policy == 'delivery':
-                self.assertEquals(line.qty_to_invoice, 0.0, "Quantity to invoice should be same as ordered quantity")
-                self.assertEquals(line.qty_invoiced, 0.0, "Invoiced quantity should be zero as no any invoice created for SO")
-                self.assertEquals(line.untaxed_amount_to_invoice, 0.0, "The amount to invoice should be zero, as the line based on delivered quantity")
-                self.assertEquals(line.untaxed_amount_invoiced, 0.0, "The invoiced amount should be zero, as the line based on delivered quantity")
-            else:
-                if line == self.sol_prod_order:
-                    self.assertEquals(line.qty_to_invoice, 2.0, "The qty to invoice does not change when confirming the new invoice (2)")
-                    self.assertEquals(line.qty_invoiced, 3.0, "The ordered sale line are totally invoiced (qty invoiced = ordered qty)")
-                    self.assertEquals(line.untaxed_amount_to_invoice, 1100.0, "")
-                    self.assertEquals(line.untaxed_amount_invoiced, 300.0, "")
-                else:
-                    self.assertEquals(line.qty_to_invoice, 1.0, "The qty to invoice does not change when confirming the new invoice (2)")
-                    self.assertEquals(line.qty_invoiced, 2.0, "The ordered sale line are totally invoiced (qty invoiced = ordered qty)")
-                    self.assertEquals(line.untaxed_amount_to_invoice, 170.0, "")
-                    self.assertEquals(line.untaxed_amount_invoiced, 100.0, "")
+        # Let's do an invoice with invoiceable lines
+        payment = self.env['sale.advance.payment.inv'].with_context(self.context).create({
+            'advance_payment_method': 'delivered'
+        })
+        payment.create_invoices()
+
+        invoice = sale_order.invoice_ids[0]
+
+        self.assertEqual(invoice.line_ids[0].display_type, 'line_section')
+
+    def test_qty_invoiced(self):
+        """Verify uom rounding is correctly considered during qty_invoiced compute"""
+        sale_order = self.env['sale.order'].with_context(tracking_disable=True).create({
+            'partner_id': self.partner_customer_usd.id,
+            'partner_invoice_id': self.partner_customer_usd.id,
+            'partner_shipping_id': self.partner_customer_usd.id,
+            'pricelist_id': self.pricelist_usd.id,
+        })
+
+        SaleOrderLine = self.env['sale.order.line'].with_context(tracking_disable=True)
+        sol_prod_deliver = SaleOrderLine.create({
+            'name': self.product_order.name,
+            'product_id': self.product_order.id,
+            'product_uom_qty': 5,
+            'product_uom': self.product_order.uom_id.id,
+            'price_unit': self.product_order.list_price,
+            'order_id': sale_order.id,
+            'tax_id': False,
+        })
+
+        # Confirm the SO
+        sale_order.action_confirm()
+
+        sol_prod_deliver.write({'qty_delivered': 5.0})
+        # Context
+        self.context = {
+            'active_model': 'sale.order',
+            'active_ids': [sale_order.id],
+            'active_id': sale_order.id,
+            'default_journal_id': self.journal_sale.id,
+        }
+
+        # Let's do an invoice with invoiceable lines
+        invoicing_wizard = self.env['sale.advance.payment.inv'].with_context(self.context).create({
+            'advance_payment_method': 'delivered'
+        })
+        invoicing_wizard.create_invoices()
+
+        self.assertEqual(sol_prod_deliver.qty_invoiced, 5.0)
+        # We would have to change the digits of the field to
+        # test a greater decimal precision.
+        quantity = 5.003
+        move_form = Form(sale_order.invoice_ids)
+        with move_form.invoice_line_ids.edit(0) as line_form:
+            line_form.quantity = quantity
+        move_form.save()
+
+        # Default uom rounding to 0.001
+        qty_invoiced_field = sol_prod_deliver._fields.get('qty_invoiced')
+        sol_prod_deliver.env.add_to_compute(qty_invoiced_field, sol_prod_deliver)
+        self.assertEqual(sol_prod_deliver.qty_invoiced, quantity)
+
+        # Rounding to 0.01, should be rounded with UP (ceil) rounding_method
+        # Not floor or half up rounding.
+        sol_prod_deliver.product_uom.rounding *= 10
+        sol_prod_deliver.product_uom.flush(['rounding'])
+        expected_qty = 5.01
+        qty_invoiced_field = sol_prod_deliver._fields.get('qty_invoiced')
+        sol_prod_deliver.env.add_to_compute(qty_invoiced_field, sol_prod_deliver)
+        self.assertEqual(sol_prod_deliver.qty_invoiced, expected_qty)

@@ -23,17 +23,17 @@ def _configure_journals(cr, registry):
         # If not, check if you can find a journal that is already there with the same name, otherwise create one
         if not properties:
             journal_id = env['account.journal'].search([
-                ('name', '=', _('Stock Journal')),
+                ('name', '=', _('Inventory Valuation')),
                 ('company_id', '=', company_id.id),
                 ('type', '=', 'general')], limit=1).id
             if not journal_id:
-              journal_id = env['account.journal'].create({
-                'name': _('Stock Journal'),
-                'type': 'general',
-                'code': 'STJ',
-                'company_id': company_id.id,
-                'show_on_dashboard': False
-              }).id
+                journal_id = env['account.journal'].create({
+                    'name': _('Inventory Valuation'),
+                    'type': 'general',
+                    'code': 'STJ',
+                    'company_id': company_id.id,
+                    'show_on_dashboard': False
+                }).id
             vals = {
                 'name': 'property_stock_journal',
                 'fields_id': env['ir.model.fields'].search([
@@ -91,4 +91,4 @@ def _configure_journals(cr, registry):
                 'value': 'account.account,'+str(account_id),
                 'company_id': env.ref('base.main_company').id,
             }
-            env['ir.property']._load_records([dict(xml_id=xml_id, values=vals)])
+            env['ir.property']._load_records([dict(xml_id=xml_id, values=vals, noupdate=True)])

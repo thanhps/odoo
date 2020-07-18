@@ -1,17 +1,17 @@
 # Translation of Odoo Server.
 # This file contains the translation of the following modules:
-# * project_timesheet_holidays
+# 	* project_timesheet_holidays
 # 
 # Translators:
-# Martin Trigaux, 2018
+# Martin Trigaux, 2019
 # Linas Versada <linaskrisiukenas@gmail.com>, 2019
 # 
 msgid ""
 msgstr ""
-"Project-Id-Version: Odoo Server saas~11.5\n"
+"Project-Id-Version: Odoo Server saas~12.5\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-09-21 13:17+0000\n"
-"PO-Revision-Date: 2018-08-24 09:23+0000\n"
+"POT-Creation-Date: 2019-08-26 08:17+0000\n"
+"PO-Revision-Date: 2019-08-26 09:13+0000\n"
 "Last-Translator: Linas Versada <linaskrisiukenas@gmail.com>, 2019\n"
 "Language-Team: Lithuanian (https://www.transifex.com/odoo/teams/41243/lt/)\n"
 "MIME-Version: 1.0\n"
@@ -31,14 +31,13 @@ msgid "Analytic Lines"
 msgstr "Analitinės eilutės"
 
 #. module: project_timesheet_holidays
-#: code:addons/project_timesheet_holidays/models/hr_holidays.py:38
+#: code:addons/project_timesheet_holidays/models/hr_holidays.py:0
 #, python-format
 msgid ""
-"Both the internal project and task are required to generate timesheet for "
-"the leaves."
+"Both the internal project and task are required to generate a timesheet for "
+"the time off. If you don't want a timesheet, you should leave the internal "
+"project and task empty."
 msgstr ""
-"Tiek vidiniam projektui, tiek užduočiai reikia generuoti darbo apskaitos "
-"žiniaraščius laisvadieniams."
 
 #. module: project_timesheet_holidays
 #: model:ir.model,name:project_timesheet_holidays.model_res_company
@@ -53,10 +52,8 @@ msgstr "Konfigūracijos nustatymai"
 #. module: project_timesheet_holidays
 #: model:ir.model.fields,help:project_timesheet_holidays.field_res_company__leave_timesheet_project_id
 #: model:ir.model.fields,help:project_timesheet_holidays.field_res_config_settings__leave_timesheet_project_id
-msgid "Default project value for timesheet generated from leave type."
+msgid "Default project value for timesheet generated from time off type."
 msgstr ""
-"Numatytoji projekto vertė laiko apskaitos žiniaraščiui, sugeneruotam iš "
-"laisvadienio tipo."
 
 #. module: project_timesheet_holidays
 #: model:ir.model.fields,field_description:project_timesheet_holidays.field_hr_leave_type__timesheet_generate
@@ -66,15 +63,12 @@ msgstr "Generuoti laiko apskaitos žiniaraštį"
 #. module: project_timesheet_holidays
 #: model:ir.model.fields,help:project_timesheet_holidays.field_hr_leave_type__timesheet_generate
 msgid ""
-"If checked, when validating a leave, timesheet will be generated in the "
+"If checked, when validating a time off, timesheet will be generated in the "
 "Vacation Project of the company."
 msgstr ""
-"Jei pažymėta, laiko apskaitos žiniaraštis bus sugeneruojamas įmonės "
-"laisvadienių projekte, kai patvirtinamos atostogos."
 
 #. module: project_timesheet_holidays
-#: code:addons/project_timesheet_holidays/models/res_company.py:30
-#: model:ir.model.fields,field_description:project_timesheet_holidays.field_hr_leave_type__timesheet_project_id
+#: code:addons/project_timesheet_holidays/models/res_company.py:0
 #: model:ir.model.fields,field_description:project_timesheet_holidays.field_res_company__leave_timesheet_project_id
 #: model:ir.model.fields,field_description:project_timesheet_holidays.field_res_config_settings__leave_timesheet_project_id
 #, python-format
@@ -82,38 +76,12 @@ msgid "Internal Project"
 msgstr "Vidinis projektas"
 
 #. module: project_timesheet_holidays
-#: model:ir.model.fields,field_description:project_timesheet_holidays.field_hr_leave_type__timesheet_task_id
-msgid "Internal Task for timesheet"
-msgstr "Vidinė užduotis laiko apskaitos žiniaraščiui"
-
-#. module: project_timesheet_holidays
-#: model:ir.model,name:project_timesheet_holidays.model_hr_leave
-msgid "Leave"
-msgstr "Laisvadienis"
-
-#. module: project_timesheet_holidays
 #: model:ir.model.fields,field_description:project_timesheet_holidays.field_account_analytic_line__holiday_id
 msgid "Leave Request"
 msgstr "Laisvadienių prašymas"
 
 #. module: project_timesheet_holidays
-#: model:ir.model.fields,field_description:project_timesheet_holidays.field_res_company__leave_timesheet_task_id
-#: model:ir.model.fields,field_description:project_timesheet_holidays.field_res_config_settings__leave_timesheet_task_id
-msgid "Leave Task"
-msgstr "Laisvadienių užduotis"
-
-#. module: project_timesheet_holidays
-#: model:ir.model,name:project_timesheet_holidays.model_hr_leave_type
-msgid "Leave Type"
-msgstr "Laisvadienių tipas"
-
-#. module: project_timesheet_holidays
-#: code:addons/project_timesheet_holidays/models/res_company.py:40
-#, python-format
-msgid "Leaves"
-msgstr "Laisvadieniai"
-
-#. module: project_timesheet_holidays
+#: model:ir.model.fields,field_description:project_timesheet_holidays.field_hr_leave_type__timesheet_project_id
 #: model_terms:ir.ui.view,arch_db:project_timesheet_holidays.res_config_settings_view_form
 msgid "Project"
 msgstr "Projektas"
@@ -124,15 +92,48 @@ msgid "Task"
 msgstr "Užduotis"
 
 #. module: project_timesheet_holidays
-#: model:ir.model.fields,help:project_timesheet_holidays.field_hr_leave_type__timesheet_project_id
-msgid ""
-"The project will contain the timesheet generated when a leave is validated."
+#: model:ir.model.fields,field_description:project_timesheet_holidays.field_hr_leave_type__timesheet_task_id
+msgid "Task for timesheet"
 msgstr ""
-"Projektas turės laiko apskaitos žiniaraštį, sugeneruotą patvirtinant "
-"laisvadienius."
 
 #. module: project_timesheet_holidays
-#: code:addons/project_timesheet_holidays/models/account_analytic.py:16
+#: code:addons/project_timesheet_holidays/models/res_company.py:0
+#, python-format
+msgid "The Internal Project of a company should be in that company."
+msgstr ""
+
+#. module: project_timesheet_holidays
+#: model:ir.model.fields,help:project_timesheet_holidays.field_hr_leave_type__timesheet_project_id
+msgid ""
+"The project will contain the timesheet generated when a time off is "
+"validated."
+msgstr ""
+
+#. module: project_timesheet_holidays
+#: code:addons/project_timesheet_holidays/models/res_company.py:0
+#: model:ir.model,name:project_timesheet_holidays.model_hr_leave
+#, python-format
+msgid "Time Off"
+msgstr ""
+
+#. module: project_timesheet_holidays
+#: model:ir.model.fields,field_description:project_timesheet_holidays.field_res_company__leave_timesheet_task_id
+#: model:ir.model.fields,field_description:project_timesheet_holidays.field_res_config_settings__leave_timesheet_task_id
+msgid "Time Off Task"
+msgstr ""
+
+#. module: project_timesheet_holidays
+#: model:ir.model,name:project_timesheet_holidays.model_hr_leave_type
+msgid "Time Off Type"
+msgstr ""
+
+#. module: project_timesheet_holidays
+#: model_terms:ir.ui.view,arch_db:project_timesheet_holidays.hr_holiday_status_view_form_inherit
+msgid "Timesheet"
+msgstr "Darbo laiko apskaitos žiniaraštis"
+
+#. module: project_timesheet_holidays
+#: code:addons/project_timesheet_holidays/models/account_analytic.py:0
 #, python-format
 msgid ""
 "You cannot delete timesheet lines attached to a leaves. Please cancel the "

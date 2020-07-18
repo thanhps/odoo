@@ -10,6 +10,7 @@ odoo.define('mail.Manager.Notification', function (require) {
 var MailManager = require('mail.Manager');
 var MailFailure = require('mail.model.MailFailure');
 
+const config = require('web.config');
 var core = require('web.core');
 var session = require('web.session');
 
@@ -56,8 +57,32 @@ MailManager.include({
     _handleChannelNotification: function (params) {
         if (params.data && params.data.info === 'typing_status') {
             this._handleChannelTypingNotification(params.channelID, params.data);
+        } else if (params.data && params.data.info === 'channel_fetched') {
+            this._handleChannelFetchedNotification(params.channelID, params.data);
+        } else if (params.data && params.data.info === 'channel_seen') {
+            this._handleChannelSeenNotification(params.channelID, params.data);
         } else {
             this._handleChannelMessageNotification(params.data);
+        }
+    },
+    /**
+     * Called when a channel has been fetched, and the server responses with the
+     * last message fetched. Useful in order to track last message fetched.
+     *
+     * @private
+     * @param {integer} channelID
+     * @param {Object} data
+     * @param {string} data.info 'channel_fetched'
+     * @param {integer} data.last_message_id
+     * @param {integer} data.partner_id
+     */
+    _handleChannelFetchedNotification: function (channelID, data) {
+        var channel = this.getChannel(channelID);
+        if (!channel) {
+            return;
+        }
+        if (channel.hasSeenFeature()) {
+            channel.updateSeenPartnersInfo(data);
         }
     },
     /**
@@ -77,16 +102,43 @@ MailManager.include({
             channelAlreadyInCache = !!this.getChannel(messageData.channel_ids[0]);
             def = this.joinChannel(messageData.channel_ids[0], { autoswitch: false });
         } else {
-            def = $.when();
+            def = Promise.resolve();
         }
         def.then(function () {
             // don't increment unread if channel wasn't in cache yet as
             // its unread counter has just been fetched
-            self.addMessage(messageData, {
+            return self.addMessage(messageData, {
                 showNotification: true,
                 incrementUnread: channelAlreadyInCache
             });
         });
+    },
+    /**
+     * Called when a channel has been seen, and the server responses with the
+     * last message seen. Useful in order to track last message seen.
+     *
+     * @private
+     * @param {integer} channelID
+     * @param {Object} data
+     * @param {string} data.info 'channel_seen'
+     * @param {integer} data.last_message_id
+     * @param {integer} data.partner_id
+     */
+    _handleChannelSeenNotification: function (channelID, data) {
+        var channel = this.getChannel(channelID);
+        if (!channel) {
+            return;
+        }
+        if (channel.hasSeenFeature()) {
+            channel.updateSeenPartnersInfo(data);
+        }
+        if (session.partner_id !== data.partner_id) {
+            return;
+        }
+        channel.setLastSeenMessageID(data.last_message_id);
+        if (channel.hasUnreadMessages()) {
+            channel.resetUnreadCounter();
+        }
     },
     /**
      * Called when someone starts or stops typing a message in a channel
@@ -128,18 +180,19 @@ MailManager.include({
     _handleNeedactionNotification: function (messageData) {
         var self = this;
         var inbox = this.getMailbox('inbox');
-        var message = this.addMessage(messageData, {
+        this.addMessage(messageData, {
             incrementUnread: true,
             showNotification: true,
+        }).then(function (message) {
+            inbox.incrementMailboxCounter();
+            _.each(message.getThreadIDs(), function (threadID) {
+                var channel = self.getChannel(threadID);
+                if (channel) {
+                    channel.incrementNeedactionCounter();
+                }
+            });
+            self._mailBus.trigger('update_needaction', inbox.getMailboxCounter());
         });
-        inbox.incrementMailboxCounter();
-        _.each(message.getThreadIDs(), function (threadID) {
-            var channel = self.getChannel(threadID);
-            if (channel) {
-                channel.incrementNeedactionCounter();
-            }
-        });
-        this._mailBus.trigger('update_needaction', inbox.getMailboxCounter());
     },
     /**
      * Called when an activity record has been updated on the server
@@ -151,23 +204,20 @@ MailManager.include({
         this._mailBus.trigger('activity_updated', data);
     },
     /**
-     * Called when a channel has been seen, and the server responses with the
-     * last message seen. Useful in order to track last message seen.
+     * Called to open the channel in detach mode (minimized) even if no new message:
      *
      * @private
-     * @param {Object} data
-     * @param {integer} data.id ID of a channel
-     * @param {integer} [data.last_message_id] mandatory if 'id' refers to an
-     *      existing channel.
+     * @param {Object} channelData
+     * @param {integer} channelData.id
+     * @param {string} [channelData.info]
+     * @param {boolean} channelData.is_minimized
+     * @param {string} channelData.state
      */
-    _handlePartnerChannelSeenNotification: function (data) {
-        var channel = this.getChannel(data.id);
-        if (channel) {
-            channel.setLastSeenMessageID(data.last_message_id);
-            if (channel.hasUnreadMessages()) {
-                channel.resetUnreadCounter();
-            }
-        }
+    _handlePartnerChannelMinimizeNotification: function (channelData) {
+        var self = this;
+        this._addChannel(channelData).then(function (channelID){
+            self.getChannel(channelID).detach()
+        });
     },
     /**
      * Called when receiving a channel state as a partner notification:
@@ -199,13 +249,37 @@ MailManager.include({
                     _t("You have been invited to: ") + channelData.name);
             }
         }
-        var channel = this.getChannel(channelData.id);
-        if (channel && channelData.info !== 'join') {
-            channel.updateWindowState({
-                folded: channelData.state === 'folded' ? true : false,
-                detached: channelData.is_minimized,
-            });
+        // Prevent to open/close a channel on mobile when you open/close it on desktop.
+        if (!config.device.isMobile) {
+            const channel = this.getChannel(channelData.id);
+            if (channel && channelData.info !== 'join') {
+                channel.updateWindowState({
+                    folded: channelData.state === 'folded' ? true : false,
+                    detached: channelData.is_minimized,
+                });
+            }
         }
+    },
+    /**
+     * Called when receiving a multi_user_channel seen notification. Only
+     * the current user is notified. This must be handled as if this is a
+     * channel seen notification.
+     *
+     * Note that this is a 'res.partner' notification because only the current
+     * user is notified on channel seen. This is a consequence from disabling
+     * the seen feature on multi_user_channel, because we still need to get
+     * the last seen message ID in order to display the "New Messages" separator
+     * in Discuss.
+     *
+     * @private
+     * @param {Object} data
+     * @param {integer} data.channel_id
+     * @param {string} data.info 'channel_seen'
+     * @param {integer} data.last_message_id
+     * @param {integer} data.partner_id
+     */
+    _handlePartnerChannnelSeenNotification: function (data) {
+        this._handleChannelSeenNotification(data.channel_id, data);
     },
     /**
      * Add or remove failure when receiving a failure update message
@@ -265,12 +339,14 @@ MailManager.include({
      */
     _handlePartnerMarkAsReadNotification: function (data) {
         var self = this;
+        var history = this.getMailbox('history');
         _.each(data.message_ids, function (messageID) {
             var message = _.find(self._messages, function (msg) {
                 return msg.getID() === messageID;
             });
             if (message) {
                 self._removeMessageFromThread('mailbox_inbox', message);
+                history.addMessage(message);
                 self._mailBus.trigger('update_message', message, data.type);
             }
         });
@@ -328,8 +404,10 @@ MailManager.include({
      * @param {Object} data.message data of message
      */
     _handlePartnerMessageModeratorNotification: function (data) {
-        this.addMessage(data.message);
-        this._mailBus.trigger('update_moderation_counter');
+        var self = this;
+        this.addMessage(data.message).then(function () {
+            self._mailBus.trigger('update_moderation_counter');
+        });
     },
     /**
      * On receiving a notification that is specific to a user
@@ -351,8 +429,6 @@ MailManager.include({
             this._handlePartnerMessageAuthorNotification(data);
         } else if (data.type === 'deletion') {
             this._handlePartnerMessageDeletionNotification(data);
-        } else if (data.info === 'channel_seen') {
-            this._handlePartnerChannelSeenNotification(data);
         } else if (data.info === 'transient_message') {
             this._handlePartnerTransientMessageNotification(data);
         } else if (data.type === 'activity_updated') {
@@ -361,6 +437,13 @@ MailManager.include({
             this._handlePartnerMailFailureNotification(data);
         } else if (data.type === 'user_connection') {
             this._handlePartnerUserConnectionNotification(data);
+        } else if (data.info === 'channel_seen') {
+            this._handlePartnerChannnelSeenNotification(data);
+        } else if (data.type === 'simple_notification') {
+            var title = _.escape(data.title), message = _.escape(data.message);
+            data.warning ? this.do_warn(title, message, data.sticky) : this.do_notify(title, message, data.sticky);
+        } else if (data.info === 'channel_minimize') {
+            this._handlePartnerChannelMinimizeNotification(data);
         } else {
             this._handlePartnerChannelNotification(data);
         }
@@ -415,12 +498,11 @@ MailManager.include({
      *
      * @private
      * @param {Object} data
-     * @param {string} data.author_id
      */
     _handlePartnerTransientMessageNotification: function (data) {
         var lastMessage = _.last(this._messages);
         data.id = (lastMessage ? lastMessage.getID() : 0) + 0.01;
-        data.author_id = data.author_id || this.getOdoobotID();
+        data.author_id = this.getOdoobotID();
         this.addMessage(data);
     },
     /**
@@ -448,7 +530,7 @@ MailManager.include({
             }
             this._removeChannel(channel);
             this._mailBus.trigger('unsubscribe_from_channel', data.id);
-            this.do_notify(_("Unsubscribed"), message);
+            this.do_notify(_t("Unsubscribed"), message);
         }
     },
      /**
@@ -466,22 +548,6 @@ MailManager.include({
         this.call('bus_service', 'sendNotification', data.title, data.message, function ( ){
             self.call('mail_service', 'openDMChatWindowFromBlankThreadWindow', partnerID);
         });
-    },
-    /**
-     * On receiving an update on user status (e.g. becoming 'online', 'offline',
-     * 'idle', etc.).
-     *
-     * @private
-     * @param {Object} data partner infos
-     * @param {integer} data.id partner ID
-     * @param {string} data.im_status partner new 'im status' (e.g. 'online')
-     */
-    _handlePresenceNotification: function (data) {
-        var dmChat = this.getDMChatFromPartnerID(data.id);
-        if (dmChat) {
-            dmChat.setStatus(data.im_status);
-            this._mailBus.trigger('update_dm_presence', dmChat);
-        }
     },
     /**
      * @override
@@ -543,8 +609,6 @@ MailManager.include({
                 });
             } else if (model === 'res.partner') {
                 self._handlePartnerNotification(notif[1]);
-            } else if (model === 'bus.presence') {
-                self._handlePresenceNotification(notif[1]);
             }
         });
     },

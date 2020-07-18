@@ -17,7 +17,7 @@ class AccountFrFec(models.TransientModel):
 
     date_from = fields.Date(string='Start Date', required=True)
     date_to = fields.Date(string='End Date', required=True)
-    fec_data = fields.Binary('FEC File', readonly=True)
+    fec_data = fields.Binary('FEC File', readonly=True, attachment=False)
     filename = fields.Char(string='Filename', size=256, readonly=True)
     export_type = fields.Selection([
         ('official', 'Official FEC report (posted entries only)'),
@@ -57,7 +57,7 @@ class AccountFrFec(models.TransientModel):
         WHERE
             am.date < %s
             AND am.company_id = %s
-            AND aat.include_initial_balance = 'f'
+            AND aat.include_initial_balance IS NOT TRUE
             AND (aml.debit != 0 OR aml.credit != 0)
         '''
         # For official report: only use posted entries
@@ -65,7 +65,7 @@ class AccountFrFec(models.TransientModel):
             sql_query += '''
             AND am.state = 'posted'
             '''
-        company = self.env.user.company_id
+        company = self.env.company
         formatted_date_from = fields.Date.to_string(self.date_from).replace('-', '')
         date_from = self.date_from
         formatted_date_year = date_from.year
@@ -97,7 +97,6 @@ class AccountFrFec(models.TransientModel):
             'siren': company.vat[4:13] if not is_dom_tom else '',
         }
 
-    @api.multi
     def generate_fec(self):
         self.ensure_one()
         # We choose to implement the flat file instead of the XML
@@ -108,7 +107,7 @@ class AccountFrFec(models.TransientModel):
         # 2) CSV files are easier to read/use for a regular accountant.
         # So it will be easier for the accountant to check the file before
         # sending it to the fiscal administration
-        company = self.env.user.company_id
+        company = self.env.company
         company_legal_data = self._get_company_legal_data(company)
 
         header = [
@@ -235,9 +234,13 @@ class AccountFrFec(models.TransientModel):
             %s AS EcritureDate,
             MIN(aa.code) AS CompteNum,
             replace(MIN(aa.name), '|', '/') AS CompteLib,
-            CASE WHEN rp.ref IS null OR rp.ref = ''
-            THEN COALESCE('ID ' || rp.id, '')
-            ELSE replace(rp.ref, '|', '/')
+            CASE WHEN MIN(aat.type) IN ('receivable', 'payable')
+            THEN
+                CASE WHEN rp.ref IS null OR rp.ref = ''
+                THEN rp.id::text
+                ELSE replace(rp.ref, '|', '/')
+                END
+            ELSE ''
             END
             AS CompAuxNum,
             COALESCE(replace(rp.name, '|', '/'), '') AS CompAuxLib,
@@ -293,9 +296,13 @@ class AccountFrFec(models.TransientModel):
             TO_CHAR(am.date, 'YYYYMMDD') AS EcritureDate,
             aa.code AS CompteNum,
             replace(replace(aa.name, '|', '/'), '\t', '') AS CompteLib,
-            CASE WHEN rp.ref IS null OR rp.ref = ''
-            THEN COALESCE('ID ' || rp.id, '')
-            ELSE replace(rp.ref, '|', '/')
+            CASE WHEN aat.type IN ('receivable', 'payable')
+            THEN
+                CASE WHEN rp.ref IS null OR rp.ref = ''
+                THEN rp.id::text
+                ELSE replace(rp.ref, '|', '/')
+                END
+            ELSE ''
             END
             AS CompAuxNum,
             COALESCE(replace(replace(rp.name, '|', '/'), '\t', ''), '') AS CompAuxLib,
@@ -305,7 +312,9 @@ class AccountFrFec(models.TransientModel):
             END
             AS PieceRef,
             TO_CHAR(am.date, 'YYYYMMDD') AS PieceDate,
-            CASE WHEN aml.name IS NULL THEN '/' ELSE replace(replace(aml.name, '|', '/'), '\t', '') END AS EcritureLib,
+            CASE WHEN aml.name IS NULL OR aml.name = '' THEN '/'
+                WHEN aml.name SIMILAR TO '[\t|\s|\n]*' THEN '/'
+                ELSE replace(replace(replace(replace(aml.name, '|', '/'), '\t', ''), '\n', ''), '\r', '') END AS EcritureLib,
             replace(CASE WHEN aml.debit = 0 THEN '0,00' ELSE to_char(aml.debit, '000000000000000D99') END, '.', ',') AS Debit,
             replace(CASE WHEN aml.credit = 0 THEN '0,00' ELSE to_char(aml.credit, '000000000000000D99') END, '.', ',') AS Credit,
             CASE WHEN rec.name IS NULL THEN '' ELSE rec.name END AS EcritureLet,
@@ -322,6 +331,7 @@ class AccountFrFec(models.TransientModel):
             LEFT JOIN res_partner rp ON rp.id=aml.partner_id
             JOIN account_journal aj ON aj.id = am.journal_id
             JOIN account_account aa ON aa.id = aml.account_id
+            LEFT JOIN account_account_type aat ON aa.user_type_id = aat.id
             LEFT JOIN res_currency rc ON rc.id = aml.currency_id
             LEFT JOIN account_full_reconcile rec ON rec.id = aml.full_reconcile_id
         WHERE
@@ -388,7 +398,7 @@ class AccountFrFec(models.TransientModel):
         rows_length = len(rows)
         for i, row in enumerate(rows):
             if not i == rows_length - 1:
-                row.append(lineterminator)
+                row[-1] += lineterminator
             writer.writerow(row)
 
         fecvalue = fecfile.getvalue()

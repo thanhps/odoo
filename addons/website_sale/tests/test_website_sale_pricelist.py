@@ -4,7 +4,9 @@ try:
     from unittest.mock import patch
 except ImportError:
     from mock import patch
+from odoo.tests import tagged
 from odoo.tests.common import HttpCase, TransactionCase
+from odoo.tools import DotDict
 
 ''' /!\/!\
 Calling `get_pricelist_available` after setting `property_product_pricelist` on
@@ -25,6 +27,7 @@ Try to keep one call to `get_pricelist_available` by test method.
 '''
 
 
+@tagged('post_install', '-at_install')
 class TestWebsitePriceList(TransactionCase):
 
     # Mock nedded because request.session doesn't exist during test
@@ -65,6 +68,7 @@ class TestWebsitePriceList(TransactionCase):
         self.addCleanup(patcher.stop)
 
     def get_pl(self, show, current_pl, country):
+        self.website.invalidate_cache(['pricelist_ids'], [self.website.id])
         pl_ids = self.website._get_pl_partner_order(
             country,
             show,
@@ -154,13 +158,7 @@ def simulate_frontend_context(self, website_id=1):
     self.addCleanup(patcher.stop)
 
 
-class DotDict(dict):
-    """dot.notation access to dictionary attributes"""
-    def __getattr__(*args):
-        val = dict.get(*args)
-        return DotDict(val) if type(val) is dict else val
-
-
+@tagged('post_install', '-at_install')
 class TestWebsitePriceListAvailable(TransactionCase):
     # This is enough to avoid a mock (request.session/website do not exist during test)
     def get_pricelist_available(self, show_visible=False, website_id=1, country_code=None, website_sale_current_pl=None):
@@ -185,7 +183,7 @@ class TestWebsitePriceListAvailable(TransactionCase):
         self.website2 = Website.create({'name': 'Website 2'})
 
         # Remove existing pricelists and create new ones
-        Pricelist.search([]).write({'active': False})
+        existing_pricelists = Pricelist.search([])
         self.backend_pl = Pricelist.create({
             'name': 'Backend Pricelist',
             'website_id': False,
@@ -215,21 +213,22 @@ class TestWebsitePriceListAvailable(TransactionCase):
             'website_id': self.website.id,
             'selectable': True,
         })
-        self.w1_pl_code = Pricelist.create({
-            'name': 'Website 1 Pricelist Code',
-            'website_id': self.website.id,
-            'code': 'W1CODE',
-        })
         self.w1_pl_code_select = Pricelist.create({
             'name': 'Website 1 Pricelist Code Selectable',
             'website_id': self.website.id,
             'code': 'W1CODESELECT',
             'selectable': True,
         })
+        self.w1_pl_code = Pricelist.create({
+            'name': 'Website 1 Pricelist Code',
+            'website_id': self.website.id,
+            'code': 'W1CODE',
+        })
         self.w2_pl = Pricelist.create({
             'name': 'Website 2 Pricelist',
             'website_id': self.website2.id,
         })
+        existing_pricelists.write({'active': False})
 
         simulate_frontend_context(self)
 
@@ -257,6 +256,7 @@ class TestWebsitePriceListAvailable(TransactionCase):
         self.assertEqual(len(pl), 1, "Inactive partner should still get a `property_product_pricelist`")
 
 
+@tagged('post_install', '-at_install')
 class TestWebsitePriceListAvailableGeoIP(TestWebsitePriceListAvailable):
     def setUp(self):
         super(TestWebsitePriceListAvailableGeoIP, self).setUp()
@@ -284,8 +284,8 @@ class TestWebsitePriceListAvailableGeoIP(TestWebsitePriceListAvailable):
         # generic_pl_code_select  |      V     |         |   V  |       BENELUX |
         # w1_pl                   |            |    1    |      |       BENELUX |
         # w1_pl_select            |      V     |    1    |      |            BE |
-        # w1_pl_code              |            |    1    |   V  |           EUR |
         # w1_pl_code_select       |      V     |    1    |   V  |            NL |
+        # w1_pl_code              |            |    1    |   V  |           EUR |
         # w2_pl                   |            |    2    |      |       BENELUX |
 
         # available pl for website 1 for GeoIP BE (anything except website 2, backend and NL)
@@ -309,9 +309,8 @@ class TestWebsitePriceListAvailableGeoIP(TestWebsitePriceListAvailable):
     def test_get_pricelist_available_geoip3(self):
         # Test get all available pricelists with geoip and a partner pricelist (ir.property) website compliant (but not geoip compliant)
         self.env.user.partner_id.property_product_pricelist = self.w1_pl_code_select
-        self.website1_be_pl += self.env.user.partner_id.property_product_pricelist
         pls = self.get_pricelist_available(country_code=self.BE.code)
-        self.assertEqual(pls, self.website1_be_pl, "Only pricelists for BE and accessible on website should be returned, plus the partner pricelist as it is website compliant")
+        self.assertEqual(pls, self.website1_be_pl, "Only pricelists for BE and accessible on website should be returned, but not the partner pricelist as it is website compliant but not GeoIP compliant.")
 
     def test_get_pricelist_available_geoip4(self):
         # Test get all available with geoip and visible pricelists + promo pl
@@ -324,6 +323,7 @@ class TestWebsitePriceListAvailableGeoIP(TestWebsitePriceListAvailable):
         self.assertEqual(pls, pls_to_return + current_pl, "Only pricelists for BE, accessible en website and selectable should be returned. It should also return the applied promo pl")
 
 
+@tagged('post_install', '-at_install')
 class TestWebsitePriceListHttp(HttpCase):
     def test_get_pricelist_available_multi_company(self):
         ''' Test that the `property_product_pricelist` of `res.partner` is not
@@ -347,6 +347,7 @@ class TestWebsitePriceListHttp(HttpCase):
         self.assertEqual(r.status_code, 200, "The page should not raise an access error because of reading pricelists from other companies")
 
 
+@tagged('post_install', '-at_install')
 class TestWebsitePriceListMultiCompany(TransactionCase):
     def setUp(self):
         ''' Create a basic multi-company pricelist environment:

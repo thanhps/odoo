@@ -3,6 +3,7 @@ odoo.define('web_editor.summernote', function (require) {
 
 var core = require('web.core');
 require('summernote/summernote'); // wait that summernote is loaded
+var weDefaultOptions = require('web_editor.wysiwyg.default_options');
 
 var _t = core._t;
 
@@ -1011,7 +1012,18 @@ renderer.tplButtonInfo.color = function (lang, options) {
         dropdown: renderer.getTemplate().dropdown(backColorItems)
     });
     return recentColorButton + foreColorButton + backColorButton;
-},
+};
+
+renderer.tplButtonInfo.checklist = function (lang, options) {
+    return '<button ' +
+            'type="button" ' +
+            'class="btn btn-secondary btn-sm" ' +
+            'title="' + _t('Checklist') + '" ' +
+            'data-event="insertCheckList" ' +
+            'tabindex="-1" ' +
+            'data-name="ul" ' +
+        '><i class="fa fa-check-square"></i></button>';
+};
 
 //::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
@@ -1033,10 +1045,11 @@ options.keyMap.mac['ESCAPE'] = 'cancel';
 options.keyMap.mac['UP'] = 'up';
 options.keyMap.mac['DOWN'] = 'down';
 
-options.styleTags = ['p', 'pre', 'small', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote'];
+options.styleTags = weDefaultOptions.styleTags;
 
 $.summernote.pluginEvents.insertTable = function (event, editor, layoutInfo, sDim) {
   var $editable = layoutInfo.editable();
+  $editable.focus();
   var dimension = sDim.split('x');
   var r = range.create();
   if (!r) return;
@@ -1181,6 +1194,20 @@ $.summernote.pluginEvents.enter = function (event, editor, layoutInfo) {
 
     var br = $("<br/>")[0];
 
+    // set selection outside of A if range is at beginning or end
+    var elem = dom.isBR(elem) ? elem.parentNode : dom.node(r.sc);
+    if (elem.tagName === "A") {
+        if (r.so === 0 && dom.firstChild(elem) === r.sc) {
+            r.ec = r.sc = dom.hasContentBefore(elem) || $(dom.createText('')).insertBefore(elem)[0];
+            r.eo = r.so = dom.nodeLength(r.sc);
+            r.select();
+        } else if (dom.nodeLength(r.sc) === r.so && dom.lastChild(elem) === r.sc) {
+            r.ec = r.sc = dom.hasContentAfter(elem) || dom.insertAfter(dom.createText(''), elem);
+            r.eo = r.so = 0;
+            r.select();
+        }
+    }
+
     var node;
     var $node;
     var $clone;
@@ -1259,9 +1286,11 @@ $.summernote.pluginEvents.enter = function (event, editor, layoutInfo) {
     } else {
         node = dom.splitTree(last, {'node': r.sc, 'offset': r.so}) || r.sc;
         if (!contentBefore) {
+            // dom.node chooses the parent if node is text
             var cur = dom.node(dom.lastChild(node.previousSibling));
             if (!dom.isBR(cur)) {
-                $(cur).html(br);
+                // We should concat what was before with a <br>
+                $(cur).html(cur.innerHTML + br.outerHTML);
             }
         }
         if (!dom.isVisibleText(node)) {
@@ -1646,9 +1675,13 @@ function isFormatNode(node) {
     return node.tagName && options.styleTags.indexOf(node.tagName.toLowerCase()) !== -1;
 }
 
-$.summernote.pluginEvents.insertUnorderedList = function (event, editor, layoutInfo, sorted) {
+$.summernote.pluginEvents.insertUnorderedList = function (event, editor, layoutInfo, type) {
     var $editable = layoutInfo.editable();
+    $editable.focus();
     $editable.data('NoteHistory').recordUndo($editable);
+
+    type = type || "UL";
+    var sorted = type === "OL";
 
     var parent;
     var r = range.create();
@@ -1661,6 +1694,11 @@ $.summernote.pluginEvents.insertUnorderedList = function (event, editor, layoutI
 
             var ul = document.createElement(sorted ? "ol" : "ul");
             ul.className = node.className;
+            if (type !== 'checklist') {
+                ul.classList.remove('o_checklist');
+            } else {
+                ul.classList.add('o_checklist');
+            }
             parent.insertBefore(ul, node);
             while (node.firstChild) {
                 ul.appendChild(node.firstChild);
@@ -1670,6 +1708,14 @@ $.summernote.pluginEvents.insertUnorderedList = function (event, editor, layoutI
             return;
 
         } else if (node.tagName === (sorted ? "OL" : "UL")) {
+
+            if (type === 'checklist' && !node.classList.contains('o_checklist')) {
+                node.classList.add('o_checklist');
+                return;
+            } else if (type === 'UL' && node.classList.contains('o_checklist')) {
+                node.classList.remove('o_checklist');
+                return;
+            }
 
             var lis = [];
             for (var i=0; i<node.children.length; i++) {
@@ -1713,6 +1759,9 @@ $.summernote.pluginEvents.insertUnorderedList = function (event, editor, layoutI
 
     parent = p0.parentNode;
     ul = document.createElement(sorted ? "ol" : "ul");
+    if (type === 'checklist') {
+        ul.classList.add('o_checklist');
+    }
     parent.insertBefore(ul, p0);
     var childNodes = parent.childNodes;
     var brs = [];
@@ -1744,10 +1793,15 @@ $.summernote.pluginEvents.insertUnorderedList = function (event, editor, layoutI
     }
     r.clean().select();
     event.preventDefault();
+
     return false;
 };
 $.summernote.pluginEvents.insertOrderedList = function (event, editor, layoutInfo) {
-    return $.summernote.pluginEvents.insertUnorderedList(event, editor, layoutInfo, true);
+    $.summernote.pluginEvents.insertUnorderedList(event, editor, layoutInfo, "OL");
+};
+$.summernote.pluginEvents.insertCheckList = function (event, editor, layoutInfo) {
+    $.summernote.pluginEvents.insertUnorderedList(event, editor, layoutInfo, "checklist");
+    $(range.create().sc.parentNode).trigger('input'); // to update checklist-id
 };
 $.summernote.pluginEvents.indent = function (event, editor, layoutInfo, outdent) {
     var $editable = layoutInfo.editable();
@@ -1758,11 +1812,13 @@ $.summernote.pluginEvents.indent = function (event, editor, layoutInfo, outdent)
     var flag = false;
     function indentUL(UL, start, end) {
         var next;
+        var previous;
         var tagName = UL.tagName;
         var node = UL.firstChild;
         var ul = document.createElement(tagName);
+        ul.className = UL.className;
         var li = document.createElement("li");
-        li.style.listStyle = "none";
+        li.classList.add('o_indent');
         li.appendChild(ul);
 
         if (flag) {
@@ -1773,7 +1829,15 @@ $.summernote.pluginEvents.indent = function (event, editor, layoutInfo, outdent)
         while (node) {
             if (flag === 1 || node === start || $.contains(node, start)) {
                 flag = true;
-                node.parentNode.insertBefore(li, node);
+                if (previous) {
+                    if (dom.isList(previous.lastChild)) {
+                        ul = previous.lastChild;
+                    } else {
+                        previous.appendChild(ul);
+                    }
+                } else {
+                    node.parentNode.insertBefore(li, node);
+                }
             }
             next = dom.nextElementSibling(node);
             if (flag) {
@@ -1783,6 +1847,7 @@ $.summernote.pluginEvents.indent = function (event, editor, layoutInfo, outdent)
                 flag = false;
                 break;
             }
+            previous = node;
             node = next;
         }
 
@@ -1820,14 +1885,22 @@ $.summernote.pluginEvents.indent = function (event, editor, layoutInfo, outdent)
             }
             next = dom.nextElementSibling(node);
             if (flag) {
+                var $succeeding = $(node).nextAll();
                 ul = node.parentNode;
-                li.parentNode.insertBefore(node, li);
+                if (dom.previousElementSibling(ul)) {
+                    dom.insertAfter(node, li);
+                } else {
+                    li.parentNode.insertBefore(node, li);
+                }
+                $succeeding.insertAfter(node);
                 if (!ul.children.length) {
-                    if (ul.parentNode.tagName === "LI") {
+                    if (ul.parentNode.tagName === "LI" && !dom.previousElementSibling(ul)) {
                         ul = ul.parentNode;
                     }
                     ul.parentNode.removeChild(ul);
                 }
+                flag = false;
+                break;
             }
 
             if (node === end || $.contains(node, end)) {
@@ -1859,9 +1932,13 @@ $.summernote.pluginEvents.indent = function (event, editor, layoutInfo, outdent)
     var $dom = $(ancestor);
 
     if (!dom.isList(ancestor)) {
-        // to indent a selection, we indent the child nodes of the common
-        // ancestor that contains this selection
-        $dom = $(dom.node(ancestor)).children();
+        if (dom.isList(ancestor.parentNode)) {
+            $dom = $(ancestor.parentNode);
+        } else {
+            // to indent a selection, we indent the child nodes of the common
+            // ancestor that contains this selection
+            $dom = $(dom.node(ancestor)).children();
+        }
     }
     if (!$dom.not('br').length) {
         // if selection is inside a list, we indent its list items
@@ -1929,6 +2006,7 @@ $.summernote.pluginEvents.outdent = function (event, editor, layoutInfo) {
 $.summernote.pluginEvents.formatBlock = function (event, editor, layoutInfo, sTagName) {
     $.summernote.pluginEvents.applyFont(event, editor, layoutInfo, null, null, "Default");
     var $editable = layoutInfo.editable();
+    $editable.focus();
     $editable.data('NoteHistory').recordUndo($editable);
     event.preventDefault();
 
@@ -2031,7 +2109,7 @@ eventHandler.modules.editor.currentStyle = function (target) {
     return styleInfo;
 };
 
-options.fontSizes = [_t('Default'), 8, 9, 10, 11, 12, 14, 18, 24, 36, 48, 62];
+options.fontSizes = weDefaultOptions.fontSizes;
 $.summernote.pluginEvents.applyFont = function (event, editor, layoutInfo, color, bgcolor, size) {
     var r = range.create();
     if (!r) return;
@@ -2185,7 +2263,7 @@ $.summernote.pluginEvents.applyFont = function (event, editor, layoutInfo, color
     // select nodes to clean (to remove empty font and merge same nodes)
     nodes = [];
     dom.walkPoint(startPoint, endPoint, function (point) {
-      nodes.push(point.node);
+      nodes.push(point.node.childNodes[point.offset] || point.node);
     });
     nodes = list.unique(nodes);
 
@@ -2204,10 +2282,8 @@ $.summernote.pluginEvents.applyFont = function (event, editor, layoutInfo, color
      for (i=0; i<nodes.length; i++) {
       node = nodes[i];
 
-      if ((dom.isText(node) || dom.isBR(node)) && !dom.isVisibleText(node)) {
+      if (dom.isText(node) && !node.nodeValue) {
         remove(node);
-        nodes.splice(i,1);
-        i--;
         continue;
       }
 
@@ -2224,18 +2300,14 @@ $.summernote.pluginEvents.applyFont = function (event, editor, layoutInfo, color
 
       if (!className && !style) {
         remove(node, node.parentNode);
-        nodes.splice(i,1);
-        i--;
         continue;
       }
 
-      if (i>0 && (font = dom.ancestor(nodes[i-1], dom.isFont))) {
+      if (font = dom.ancestor(node.previousSibling, dom.isFont)) {
         className2 = font.getAttribute('class');
         style2 = font.getAttribute('style');
         if (node !== font && className === className2 && style === style2) {
           remove(node, font);
-          nodes.splice(i,1);
-          i--;
           continue;
         }
       }
@@ -2282,7 +2354,7 @@ $.summernote.pluginEvents.backColor = function (event, editor, layoutInfo, backC
 
 options.onCreateLink = function (sLinkUrl) {
     if (sLinkUrl.indexOf('mailto:') === 0 || sLinkUrl.indexOf('tel:') === 0) {
-      // pass
+      sLinkUrl = sLinkUrl.replace(/^tel:([0-9]+)$/, 'tel://$1');
     } else if (sLinkUrl.indexOf('@') !== -1 && sLinkUrl.indexOf(':') === -1) {
       sLinkUrl =  'mailto:' + sLinkUrl;
     } else if (sLinkUrl.indexOf('://') === -1 && sLinkUrl[0] !== '/'
@@ -2415,17 +2487,46 @@ eventHandler.modules.popover.update = function ($popover, oStyle, isAirMode) {
     }
 };
 
+function mouseDownChecklist (e) {
+    if (!dom.isLi(e.target) || !$(e.target).parent('ul.o_checklist').length || e.offsetX > 0) {
+        return;
+    }
+    e.stopPropagation();
+    e.preventDefault();
+    var checked = $(e.target).hasClass('o_checked');
+    $(e.target).toggleClass('o_checked', !checked);
+    var $sublevel = $(e.target).next('ul.o_checklist, li:has(> ul.o_checklist)').find('> li, ul.o_checklist > li');
+    var $parents = $(e.target).parents('ul.o_checklist').map(function () {
+        return this.parentNode.tagName === 'LI' ? this.parentNode : this;
+    });
+    if (checked) {
+        $sublevel.removeClass('o_checked');
+        do {
+            $parents = $parents.prev('ul.o_checklist li').removeClass('o_checked');
+        } while ($parents.length);
+    } else {
+        $sublevel.addClass('o_checked');
+        var $lis;
+        do {
+            $lis = $parents.not(':has(li[id^="checklist-id"]:not(.o_checked))').prev('ul.o_checklist li:not(.o_checked)');
+            $lis.addClass('o_checked');
+        } while ($lis.length);
+    }
+}
+
 var fn_attach = eventHandler.attach;
 eventHandler.attach = function (oLayoutInfo, options) {
     var $editable = oLayoutInfo.editor().hasClass('note-editable') ? oLayoutInfo.editor() : oLayoutInfo.editor().find('.note-editable');
     fn_attach.call(this, oLayoutInfo, options);
     $editable.on("scroll", summernote_table_scroll);
+    $editable.on("mousedown", mouseDownChecklist);
 };
 var fn_detach = eventHandler.detach;
 eventHandler.detach = function (oLayoutInfo, options) {
     var $editable = oLayoutInfo.editor().hasClass('note-editable') ? oLayoutInfo.editor() : oLayoutInfo.editor().find('.note-editable');
     fn_detach.call(this, oLayoutInfo, options);
     $editable.off("scroll", summernote_table_scroll);
+    $editable.off("mousedown", mouseDownChecklist);
     $('.o_table_handler').remove();
 };
 

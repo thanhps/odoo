@@ -1,17 +1,20 @@
 # Translation of Odoo Server.
 # This file contains the translation of the following modules:
-# * account_analytic_default
+# 	* account_analytic_default
 # 
 # Translators:
-# Martin Trigaux, 2018
-# Christophe CHAUVET <christophe.chauvet@gmail.com>, 2018
+# Cécile Collart <cco@odoo.com>, 2019
+# Christophe CHAUVET <christophe.chauvet@gmail.com>, 2019
+# Martin Trigaux, 2019
+# Jonathan <jcs@odoo.com>, 2020
+# 
 msgid ""
 msgstr ""
-"Project-Id-Version: Odoo Server saas~11.5\n"
+"Project-Id-Version: Odoo Server 13.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-09-18 09:49+0000\n"
-"PO-Revision-Date: 2018-09-18 09:49+0000\n"
-"Last-Translator: Christophe CHAUVET <christophe.chauvet@gmail.com>, 2018\n"
+"POT-Creation-Date: 2019-12-05 12:32+0000\n"
+"PO-Revision-Date: 2019-08-26 09:07+0000\n"
+"Last-Translator: Jonathan <jcs@odoo.com>, 2020\n"
 "Language-Team: French (https://www.transifex.com/odoo/teams/41243/fr/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -35,12 +38,18 @@ msgid "<strong>Product</strong>"
 msgstr "<strong>Article</strong>"
 
 #. module: account_analytic_default
+#: model:ir.model.fields,field_description:account_analytic_default.field_account_analytic_default__account_id
+#: model_terms:ir.ui.view,arch_db:account_analytic_default.view_account_analytic_default_form
+msgid "Account"
+msgstr "Compte"
+
+#. module: account_analytic_default
 #: model_terms:ir.ui.view,arch_db:account_analytic_default.view_account_analytic_default_form_search
 msgid "Accounts"
 msgstr "Comptes"
 
 #. module: account_analytic_default
-#: code:addons/account_analytic_default/models/account_analytic_default.py:27
+#: code:addons/account_analytic_default/models/account_analytic_default.py:0
 #, python-format
 msgid ""
 "An analytic default requires at least an analytic account or an analytic "
@@ -51,9 +60,15 @@ msgstr ""
 
 #. module: account_analytic_default
 #: model:ir.model.fields,field_description:account_analytic_default.field_account_analytic_default__analytic_id
+#: model:ir.model.fields,field_description:account_analytic_default.field_account_move_line__analytic_account_id
 #: model_terms:ir.ui.view,arch_db:account_analytic_default.view_account_analytic_default_form_search
 msgid "Analytic Account"
 msgstr "Compte analytique"
+
+#. module: account_analytic_default
+#: model_terms:ir.ui.view,arch_db:account_analytic_default.view_account_analytic_default_form
+msgid "Analytic Default Rule"
+msgstr "Règle analytique par défaut"
 
 #. module: account_analytic_default
 #: model:ir.actions.act_window,name:account_analytic_default.action_analytic_default_list
@@ -76,6 +91,7 @@ msgstr "Règles analytiques"
 
 #. module: account_analytic_default
 #: model:ir.model.fields,field_description:account_analytic_default.field_account_analytic_default__analytic_tag_ids
+#: model:ir.model.fields,field_description:account_analytic_default.field_account_move_line__analytic_tag_ids
 msgid "Analytic Tags"
 msgstr "Étiquettes analytiques"
 
@@ -101,11 +117,6 @@ msgid "Created on"
 msgstr "Créé le"
 
 #. module: account_analytic_default
-#: model_terms:ir.ui.view,arch_db:account_analytic_default.res_config_settings_view_form
-msgid "Default Analytic Values"
-msgstr "Valeurs analytiques par défaut"
-
-#. module: account_analytic_default
 #: model:ir.model.fields,help:account_analytic_default.field_account_analytic_default__date_stop
 msgid "Default end date for this Analytic Account."
 msgstr "Date de fin par défaut pour ce compte analytique"
@@ -118,7 +129,7 @@ msgstr "Date de début par défaut pour ce compte analytique"
 #. module: account_analytic_default
 #: model:ir.model.fields,field_description:account_analytic_default.field_account_analytic_default__display_name
 msgid "Display Name"
-msgstr "Nom affiché"
+msgstr "Afficher Nom"
 
 #. module: account_analytic_default
 #: model:ir.model.fields,field_description:account_analytic_default.field_account_analytic_default__date_stop
@@ -144,14 +155,14 @@ msgid "ID"
 msgstr "ID"
 
 #. module: account_analytic_default
-#: model:ir.model,name:account_analytic_default.model_account_invoice_line
-msgid "Invoice Line"
-msgstr "Ligne de facture"
+#: model:ir.model,name:account_analytic_default.model_account_move_line
+msgid "Journal Item"
+msgstr "Écriture comptable"
 
 #. module: account_analytic_default
 #: model:ir.model.fields,field_description:account_analytic_default.field_account_analytic_default____last_update
 msgid "Last Modified on"
-msgstr "Dernière Modification le"
+msgstr "Dernière modification le"
 
 #. module: account_analytic_default
 #: model:ir.model.fields,field_description:account_analytic_default.field_account_analytic_default__write_uid
@@ -176,11 +187,6 @@ msgid "Product"
 msgstr "Article"
 
 #. module: account_analytic_default
-#: model:ir.model,name:account_analytic_default.model_sale_order_line
-msgid "Sales Order Line"
-msgstr "Ligne de bons de commande"
-
-#. module: account_analytic_default
 #: model:ir.model.fields,help:account_analytic_default.field_account_analytic_default__company_id
 msgid ""
 "Select a company which will use analytic account specified in analytic "
@@ -188,9 +194,8 @@ msgid ""
 "company, it will automatically take this as an analytic account)"
 msgstr ""
 "Choisissez une société qui utilisera le compte analytique par défaut (par "
-"ex. : à la création d'une facture client ou d'une commande de vente, si "
-"cette société est sélectionnée, ce compte analytique sera automatiquement "
-"utilisé)"
+"ex. : à la création d'une facture client ou d'un bon de commadne, si cette "
+"société est sélectionnée, ce compte analytique sera automatiquement utilisé)"
 
 #. module: account_analytic_default
 #: model:ir.model.fields,help:account_analytic_default.field_account_analytic_default__partner_id
@@ -199,8 +204,8 @@ msgid ""
 "default (e.g. create new customer invoice or Sales order if we select this "
 "partner, it will automatically take this as an analytic account)"
 msgstr ""
-"Choisissez un client qui utilisera le compte analytique par défaut (par ex. "
-": à la création d'une facture client ou d'une commande de vente, si ce "
+"Choisissez un partenaire qui utilisera le compte analytique par défaut (par "
+"ex. : à la création d'une facture client ou d'un bon de commande, si ce "
 "client est sélectionné, ce compte analytique sera automatiquement utilisé)"
 
 #. module: account_analytic_default
@@ -211,8 +216,8 @@ msgid ""
 "product, it will automatically take this as an analytic account)"
 msgstr ""
 "Choisissez un article qui utilisera le compte analytique par défaut (par ex."
-" : à la création d'une facture client ou d'une commande de vente, si ce "
-"produit est ajouté, ce compte analytique sera automatiquement utilisé)"
+" : à la création d'une facture client ou d'un bon de commande, si ce produit"
+" est ajouté, ce compte analytique sera automatiquement utilisé)"
 
 #. module: account_analytic_default
 #: model:ir.model.fields,help:account_analytic_default.field_account_analytic_default__user_id
@@ -220,6 +225,18 @@ msgid ""
 "Select a user which will use analytic account specified in analytic default."
 msgstr ""
 "Choisissez un utilisateur qui utilisera le compte analytique par défaut"
+
+#. module: account_analytic_default
+#: model:ir.model.fields,help:account_analytic_default.field_account_analytic_default__account_id
+msgid ""
+"Select an accounting account which will use analytic account specified in "
+"analytic default (e.g. create new customer invoice or Sales order if we "
+"select this account, it will automatically take this as an analytic account)"
+msgstr ""
+"Choisissez un compte comptable qui utilisera le compte analytique par défaut"
+" (par ex. : à la création d'une facture client ou d'un bon de commande, si "
+"ce compte est sélectionné, ce compte analytique sera automatiquement "
+"utilisé)"
 
 #. module: account_analytic_default
 #: model:ir.model.fields,field_description:account_analytic_default.field_account_analytic_default__sequence
@@ -230,6 +247,11 @@ msgstr "Séquence"
 #: model:ir.model.fields,field_description:account_analytic_default.field_account_analytic_default__date_start
 msgid "Start Date"
 msgstr "Date de début"
+
+#. module: account_analytic_default
+#: model_terms:ir.ui.view,arch_db:account_analytic_default.view_account_analytic_default_form
+msgid "Tags"
+msgstr "Étiquettes"
 
 #. module: account_analytic_default
 #: model:ir.model.fields,field_description:account_analytic_default.field_account_analytic_default__user_id

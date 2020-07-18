@@ -23,13 +23,13 @@ class TestFifoPrice(TestPurchase):
             'standard_price': 70.0,
             'uom_id': self.env.ref('uom.product_uom_kgm').id,
             'uom_po_id': self.env.ref('uom.product_uom_kgm').id,
-            'cost_method': 'fifo',
-            'valuation': 'real_time',
-            'property_stock_account_input': self.ref('purchase.o_expense'),
-            'property_stock_account_output': self.ref('purchase.o_income'),
-            'supplier_taxes_id': '[]',
+            'supplier_taxes_id': [],
             'description': 'FIFO Ice Cream',
         })
+        product_cable_management_box.categ_id.property_cost_method = 'fifo'
+        product_cable_management_box.categ_id.property_valuation = 'real_time'
+        product_cable_management_box.categ_id.property_stock_account_input_categ_id = self.ref('purchase.o_expense')
+        product_cable_management_box.categ_id.property_stock_account_output_categ_id = self.ref('purchase.o_income')
 
         # I create a draft Purchase Order for first in move for 10 kg at 50 euro
         purchase_order_1 = self.env['purchase.order'].create({
@@ -56,7 +56,7 @@ class TestFifoPrice(TestPurchase):
         # Check the standard price of the product (fifo icecream), that should have not changed
         # because the standard price is supposed to be updated only when goods are going out of the stock
         self.assertEquals(product_cable_management_box.standard_price, 70.0, 'Standard price should not have changed')
-        self.assertEquals(product_cable_management_box.stock_value, 500.0, 'Wrong stock value')
+        self.assertEquals(product_cable_management_box.value_svl, 500.0, 'Wrong stock value')
 
         # I create a draft Purchase Order for second shipment for 30 kg at 80 euro
         purchase_order_2 = self.env['purchase.order'].create({
@@ -80,7 +80,7 @@ class TestFifoPrice(TestPurchase):
         # Check the standard price of the product, that should have not changed because the
         # standard price is supposed to be updated only when goods are going out of the stock
         self.assertEquals(product_cable_management_box.standard_price, 70.0, 'Standard price as fifo price of second reception incorrect!')
-        self.assertEquals(product_cable_management_box.stock_value, 2900.0, 'Stock valuation should be 2900')
+        self.assertEquals(product_cable_management_box.value_svl, 2900.0, 'Stock valuation should be 2900')
 
         # Let us send some goods
         outgoing_shipment = self.env['stock.picking'].create({
@@ -104,7 +104,7 @@ class TestFifoPrice(TestPurchase):
         self.env['stock.immediate.transfer'].create({'pick_ids': [(4, outgoing_shipment.id)]}).process()
 
         # Check stock value became 1600 .
-        self.assertEqual(product_cable_management_box.stock_value, 1600.0, 'Stock valuation should be 1600')
+        self.assertEqual(product_cable_management_box.value_svl, 1600.0, 'Stock valuation should be 1600')
 
         # Do a delivery of an extra 500 g (delivery order)
         outgoing_shipment_uom = self.env['stock.picking'].create({
@@ -128,7 +128,7 @@ class TestFifoPrice(TestPurchase):
         self.env['stock.immediate.transfer'].create({'pick_ids': [(4, outgoing_shipment_uom.id)]}).process()
 
         # Check stock valuation and qty in stock
-        self.assertEqual(product_cable_management_box.stock_value, 1560.0, 'Stock valuation should be 1560')
+        self.assertEqual(product_cable_management_box.value_svl, 1560.0, 'Stock valuation should be 1560')
         self.assertEqual(product_cable_management_box.qty_available, 19.5, 'Should still have 19.5 in stock')
 
         # We will temporarily change the currency rate on the sixth of June to have the same results all year
@@ -217,13 +217,13 @@ class TestFifoPrice(TestPurchase):
             'standard_price': 70.0,
             'uom_id': self.env.ref('uom.product_uom_kgm').id,
             'uom_po_id': self.env.ref('uom.product_uom_kgm').id,
-            'cost_method': 'fifo',
-            'valuation': 'real_time',
-            'property_stock_account_input': self.ref('purchase.o_expense'),
-            'property_stock_account_output': self.ref('purchase.o_income'),
-            'supplier_taxes_id': '[]',
+            'supplier_taxes_id': [],
             'description': 'FIFO Ice Cream',
         })
+        product_fifo_negative.categ_id.property_cost_method = 'fifo'
+        product_fifo_negative.categ_id.property_valuation = 'real_time'
+        product_fifo_negative.categ_id.property_stock_account_input_categ_id = self.ref('purchase.o_expense')
+        product_fifo_negative.categ_id.property_stock_account_output_categ_id = self.ref('purchase.o_income')
 
         # Create outpicking.create delivery order of 100 kg.
         outgoing_shipment_neg = self.env['stock.picking'].create({
@@ -313,8 +313,5 @@ class TestFifoPrice(TestPurchase):
         self.env['stock.immediate.transfer'].create({'pick_ids': [(4, picking.id)]}).process()
 
         original_out_move = outgoing_shipment_neg.move_lines[0]
-        outgoing_shipment_fifo_icecream_neg2 = outgoing_shipment_neg2.move_lines[0]
-        original_out_move._fifo_vacuum()
-        outgoing_shipment_fifo_icecream_neg2._fifo_vacuum()
-        self.assertEquals(original_out_move.product_id.stock_value,  12000.0, 'Value of the move should be 2500')
+        self.assertEquals(original_out_move.product_id.value_svl,  12000.0, 'Value of the move should be 12000')
         self.assertEquals(original_out_move.product_id.qty_available, 150.0, 'Qty available should be 150')

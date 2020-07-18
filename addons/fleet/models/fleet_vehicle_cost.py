@@ -32,9 +32,13 @@ class FleetVehicleCost(models.Model):
     contract_id = fields.Many2one('fleet.vehicle.log.contract', 'Contract', help='Contract attached to this cost')
     auto_generated = fields.Boolean('Automatically Generated', readonly=True)
     description = fields.Char("Cost Description")
+    company_id = fields.Many2one('res.company', 'Company', default=lambda self: self.env.company)
+    currency_id = fields.Many2one('res.currency', related='company_id.currency_id')
 
     def _get_odometer(self):
+        self.odometer = 0.0
         for record in self:
+            record.odometer = False
             if record.odometer_id:
                 record.odometer = record.odometer_id.value
 
@@ -115,10 +119,10 @@ class FleetVehicleLogContract(models.Model):
         ('closed', 'Closed')
         ], 'Status', default='open', readonly=True,
         help='Choose whether the contract is still valid or not',
-        track_visibility="onchange",
+        tracking=True,
         copy=False)
     notes = fields.Text('Terms and Conditions', help='Write here all supplementary information relative to this contract', copy=False)
-    cost_generated = fields.Float('Recurring Cost Amount', track_visibility="onchange",
+    cost_generated = fields.Float('Recurring Cost Amount', tracking=True,
         help="Costs paid at regular intervals, depending on the cost frequency. "
         "If the cost frequency is set to unique, the cost will be logged at the start date")
     cost_frequency = fields.Selection([
@@ -135,7 +139,7 @@ class FleetVehicleLogContract(models.Model):
     # (1) to address fields from inherited table
     # (2) fields that aren't stored in database
     cost_amount = fields.Float(related='cost_id.amount', string='Amount', store=True, readonly=False)
-    odometer = fields.Float(string='Odometer at creation', 
+    odometer = fields.Float(string='Creation Contract Odometer',
         help='Odometer measure of the vehicle at the moment of the contract creation')
 
     @api.depends('vehicle_id', 'cost_subtype_id', 'date')
@@ -156,7 +160,7 @@ class FleetVehicleLogContract(models.Model):
         otherwise return the number of days before the contract expires
         """
         for record in self:
-            if (record.expiration_date and (record.state == 'open' or record.state == 'expired')):
+            if record.expiration_date and record.state in ['open', 'diesoon', 'expired']:
                 today = fields.Date.from_string(fields.Date.today())
                 renew_date = fields.Date.from_string(record.expiration_date)
                 diff_time = (renew_date - today).days
@@ -174,24 +178,20 @@ class FleetVehicleLogContract(models.Model):
         if self.vehicle_id:
             self.odometer_unit = self.vehicle_id.odometer_unit
 
-    @api.multi
     def write(self, vals):
         res = super(FleetVehicleLogContract, self).write(vals)
         if vals.get('expiration_date') or vals.get('user_id'):
             self.activity_reschedule(['fleet.mail_act_fleet_contract_to_renew'], date_deadline=vals.get('expiration_date'), new_user_id=vals.get('user_id'))
         return res
 
-    @api.multi
     def contract_close(self):
         for record in self:
             record.state = 'closed'
 
-    @api.multi
     def contract_open(self):
         for record in self:
             record.state = 'open'
 
-    @api.multi
     def act_renew_contract(self):
         assert len(self.ids) == 1, "This operation should only be done for 1 single contract at a time, as it it suppose to open a window as result"
         for element in self:
@@ -209,7 +209,6 @@ class FleetVehicleLogContract(models.Model):
             'name': _("Renew Contract"),
             'view_mode': 'form',
             'view_id': self.env.ref('fleet.fleet_vehicle_log_contract_view_form').id,
-            'view_type': 'tree,form',
             'res_model': 'fleet.vehicle.log.contract',
             'type': 'ir.actions.act_window',
             'domain': '[]',
@@ -267,9 +266,11 @@ class FleetVehicleLogContract(models.Model):
     def scheduler_manage_contract_expiration(self):
         # This method is called by a cron task
         # It manages the state of a contract, possibly by posting a message on the vehicle concerned and updating its status
+        params = self.env['ir.config_parameter'].sudo()
+        delay_alert_contract = int(params.get_param('hr_fleet.delay_alert_contract', default=30))
         date_today = fields.Date.from_string(fields.Date.today())
-        in_fifteen_days = fields.Date.to_string(date_today + relativedelta(days=+15))
-        nearly_expired_contracts = self.search([('state', '=', 'open'), ('expiration_date', '<', in_fifteen_days)])
+        outdated_days = fields.Date.to_string(date_today + relativedelta(days=+delay_alert_contract))
+        nearly_expired_contracts = self.search([('state', '=', 'open'), ('expiration_date', '<', outdated_days)])
 
         nearly_expired_contracts.write({'state': 'diesoon'})
         for contract in nearly_expired_contracts.filtered(lambda contract: contract.user_id):
@@ -309,9 +310,9 @@ class FleetVehicleLogFuel(models.Model):
 
     liter = fields.Float()
     price_per_liter = fields.Float()
-    purchaser_id = fields.Many2one('res.partner', 'Purchaser', domain="['|',('customer','=',True),('employee','=',True)]")
+    purchaser_id = fields.Many2one('res.partner', 'Purchaser')
     inv_ref = fields.Char('Invoice Reference', size=64)
-    vendor_id = fields.Many2one('res.partner', 'Vendor', domain="[('supplier','=',True)]")
+    vendor_id = fields.Many2one('res.partner', 'Vendor')
     notes = fields.Text()
     cost_id = fields.Many2one('fleet.vehicle.cost', 'Cost', required=True, ondelete='cascade')
     # we need to keep this field as a related with store=True because the graph view doesn't support
@@ -361,9 +362,9 @@ class FleetVehicleLogServices(models.Model):
         })
         return res
 
-    purchaser_id = fields.Many2one('res.partner', 'Purchaser', domain="['|',('customer','=',True),('employee','=',True)]")
+    purchaser_id = fields.Many2one('res.partner', 'Purchaser')
     inv_ref = fields.Char('Invoice Reference')
-    vendor_id = fields.Many2one('res.partner', 'Vendor', domain="[('supplier','=',True)]")
+    vendor_id = fields.Many2one('res.partner', 'Vendor')
     # we need to keep this field as a related with store=True because the graph view doesn't support
     # (1) to address fields from inherited table and (2) fields that aren't stored in database
     cost_amount = fields.Float(related='cost_id.amount', string='Amount', store=True, readonly=False)

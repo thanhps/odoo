@@ -1,20 +1,23 @@
 # Translation of Odoo Server.
 # This file contains the translation of the following modules:
-# * utm
+# 	* utm
 # 
 # Translators:
-# Martin Trigaux, 2019
-# laznikd <laznik@mentis.si>, 2019
-# matjaz k <matjaz@mentis.si>, 2019
-# Matjaz Mozetic <m.mozetic@matmoz.si>, 2019
+# Martin Trigaux, 2020
+# laznikd <laznik@mentis.si>, 2020
+# matjaz k <matjaz@mentis.si>, 2020
+# Boris Kodelja <boris@hbs.si>, 2020
+# Tadej Lupšina <tadej@hbs.si>, 2020
+# Jasmina Macur <jasmina@hbs.si>, 2020
+# Matjaz Mozetic <m.mozetic@matmoz.si>, 2020
 # 
 msgid ""
 msgstr ""
-"Project-Id-Version: Odoo Server 12.0\n"
+"Project-Id-Version: Odoo Server saas~12.5\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-10-08 06:49+0000\n"
-"PO-Revision-Date: 2018-08-24 09:33+0000\n"
-"Last-Translator: Matjaz Mozetic <m.mozetic@matmoz.si>, 2019\n"
+"POT-Creation-Date: 2019-09-23 11:33+0000\n"
+"PO-Revision-Date: 2019-08-26 09:15+0000\n"
+"Last-Translator: Matjaz Mozetic <m.mozetic@matmoz.si>, 2020\n"
 "Language-Team: Slovenian (https://www.transifex.com/odoo/teams/41243/sl/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -28,33 +31,48 @@ msgid "Active"
 msgstr "Aktivno"
 
 #. module: utm
+#: model_terms:ir.actions.act_window,help:utm.action_view_utm_tag
+msgid "Add a new tag"
+msgstr "Dodaj novo oznako"
+
+#. module: utm
+#: model:ir.model.fields,help:utm.field_utm_campaign__is_website
+msgid "Allows us to filter relevant Campaign"
+msgstr ""
+
+#. module: utm
+#: model_terms:ir.ui.view,arch_db:utm.utm_medium_view_search
+msgid "Archived"
+msgstr "Arhivirano"
+
+#. module: utm
 #: model:ir.model.fields,field_description:utm.field_utm_mixin__campaign_id
-#: model_terms:ir.ui.view,arch_db:utm.utm_campaign_form
-#: model_terms:ir.ui.view,arch_db:utm.utm_campaign_tree
 msgid "Campaign"
-msgstr "Kampanija"
+msgstr "Kampanja"
 
 #. module: utm
 #: model:ir.model.fields,field_description:utm.field_utm_campaign__name
+#: model_terms:ir.ui.view,arch_db:utm.utm_campaign_view_form
 msgid "Campaign Name"
 msgstr "Ime kampanje"
 
 #. module: utm
-#: model:ir.actions.act_window,name:utm.utm_campaign_act
+#: model:ir.model,name:utm.model_utm_stage
+msgid "Campaign Stage"
+msgstr ""
+
+#. module: utm
+#: model:ir.actions.act_window,name:utm.action_view_utm_tag
+#: model_terms:ir.ui.view,arch_db:utm.utm_tag_view_tree
+msgid "Campaign Tags"
+msgstr "Oznake kampanje"
+
+#. module: utm
+#: model:ir.actions.act_window,name:utm.utm_campaign_action
 #: model:ir.ui.menu,name:utm.menu_utm_campaign_act
+#: model_terms:ir.ui.view,arch_db:utm.view_utm_campaign_view_search
 msgid "Campaigns"
 msgstr "Kampanje"
-
-#. module: utm
-#: model_terms:ir.ui.view,arch_db:utm.utm_medium_view_form
-#: model_terms:ir.ui.view,arch_db:utm.utm_source_view_form
-msgid "Channel"
-msgstr "Kanal"
-
-#. module: utm
-#: model:ir.model.fields,field_description:utm.field_utm_medium__name
-msgid "Channel Name"
-msgstr "Ime kanala"
 
 #. module: utm
 #: model:utm.campaign,name:utm.utm_campaign_christmas_special
@@ -62,9 +80,27 @@ msgid "Christmas Special"
 msgstr ""
 
 #. module: utm
+#: model:ir.model.fields,field_description:utm.field_utm_campaign__color
+#: model:ir.model.fields,field_description:utm.field_utm_tag__color
+msgid "Color Index"
+msgstr "Barvni indeks"
+
+#. module: utm
+#: model_terms:ir.ui.view,arch_db:utm.utm_campaign_view_kanban
+msgid "Colour"
+msgstr "Barva"
+
+#. module: utm
+#: model_terms:ir.actions.act_window,help:utm.action_view_utm_stage
+msgid "Create a stage for your campaigns"
+msgstr ""
+
+#. module: utm
 #: model:ir.model.fields,field_description:utm.field_utm_campaign__create_uid
 #: model:ir.model.fields,field_description:utm.field_utm_medium__create_uid
 #: model:ir.model.fields,field_description:utm.field_utm_source__create_uid
+#: model:ir.model.fields,field_description:utm.field_utm_stage__create_uid
+#: model:ir.model.fields,field_description:utm.field_utm_tag__create_uid
 msgid "Created by"
 msgstr "Ustvaril"
 
@@ -72,26 +108,55 @@ msgstr "Ustvaril"
 #: model:ir.model.fields,field_description:utm.field_utm_campaign__create_date
 #: model:ir.model.fields,field_description:utm.field_utm_medium__create_date
 #: model:ir.model.fields,field_description:utm.field_utm_source__create_date
+#: model:ir.model.fields,field_description:utm.field_utm_stage__create_date
+#: model:ir.model.fields,field_description:utm.field_utm_tag__create_date
 msgid "Created on"
 msgstr "Ustvarjeno"
 
 #. module: utm
+#: model_terms:ir.actions.act_window,help:utm.utm_campaign_action
+msgid "Define a new UTM campaign"
+msgstr ""
+
+#. module: utm
 #: model_terms:ir.actions.act_window,help:utm.utm_medium_action
-msgid "Define a new medium"
+msgid "Define a new UTM medium"
 msgstr ""
 
 #. module: utm
 #: model_terms:ir.actions.act_window,help:utm.utm_source_action
-msgid "Define a new source"
+msgid "Define a new UTM source"
 msgstr ""
+
+#. module: utm
+#: model_terms:ir.ui.view,arch_db:utm.utm_campaign_view_kanban
+msgid "Delete"
+msgstr "Izbriši"
+
+#. module: utm
+#: model:utm.stage,name:utm.campaign_stage_2
+msgid "Design"
+msgstr "Načrtovanje"
 
 #. module: utm
 #: model:ir.model.fields,field_description:utm.field_utm_campaign__display_name
 #: model:ir.model.fields,field_description:utm.field_utm_medium__display_name
 #: model:ir.model.fields,field_description:utm.field_utm_mixin__display_name
 #: model:ir.model.fields,field_description:utm.field_utm_source__display_name
+#: model:ir.model.fields,field_description:utm.field_utm_stage__display_name
+#: model:ir.model.fields,field_description:utm.field_utm_tag__display_name
 msgid "Display Name"
-msgstr "Prikazni naziv"
+msgstr "Naziv prikaza"
+
+#. module: utm
+#: model_terms:ir.ui.view,arch_db:utm.utm_campaign_view_kanban
+msgid "Dropdown menu"
+msgstr "Spusti seznam"
+
+#. module: utm
+#: model:utm.campaign,name:utm.utm_campaign_email_campaign_products
+msgid "Email Campaign - Products"
+msgstr "Kampanje elektronske pošte - proizvodi"
 
 #. module: utm
 #: model:utm.campaign,name:utm.utm_campaign_email_campaign_services
@@ -101,26 +166,40 @@ msgstr "Storitve kampanje preko elektronske pošte"
 #. module: utm
 #: model:utm.source,name:utm.utm_source_facebook
 msgid "Facebook"
-msgstr ""
+msgstr "Facebook"
+
+#. module: utm
+#: model_terms:ir.ui.view,arch_db:utm.view_utm_campaign_view_search
+msgid "Group By"
+msgstr "Združi po"
 
 #. module: utm
 #: model:ir.model,name:utm.model_ir_http
 msgid "HTTP Routing"
-msgstr ""
+msgstr "HTTP usmerjanje"
 
 #. module: utm
 #: model:ir.model.fields,field_description:utm.field_utm_campaign__id
 #: model:ir.model.fields,field_description:utm.field_utm_medium__id
 #: model:ir.model.fields,field_description:utm.field_utm_mixin__id
 #: model:ir.model.fields,field_description:utm.field_utm_source__id
+#: model:ir.model.fields,field_description:utm.field_utm_stage__id
+#: model:ir.model.fields,field_description:utm.field_utm_tag__id
 msgid "ID"
 msgstr "ID"
+
+#. module: utm
+#: model:ir.model.fields,field_description:utm.field_utm_campaign__is_website
+msgid "Is Website"
+msgstr ""
 
 #. module: utm
 #: model:ir.model.fields,field_description:utm.field_utm_campaign____last_update
 #: model:ir.model.fields,field_description:utm.field_utm_medium____last_update
 #: model:ir.model.fields,field_description:utm.field_utm_mixin____last_update
 #: model:ir.model.fields,field_description:utm.field_utm_source____last_update
+#: model:ir.model.fields,field_description:utm.field_utm_stage____last_update
+#: model:ir.model.fields,field_description:utm.field_utm_tag____last_update
 msgid "Last Modified on"
 msgstr "Zadnjič spremenjeno"
 
@@ -128,6 +207,8 @@ msgstr "Zadnjič spremenjeno"
 #: model:ir.model.fields,field_description:utm.field_utm_campaign__write_uid
 #: model:ir.model.fields,field_description:utm.field_utm_medium__write_uid
 #: model:ir.model.fields,field_description:utm.field_utm_source__write_uid
+#: model:ir.model.fields,field_description:utm.field_utm_stage__write_uid
+#: model:ir.model.fields,field_description:utm.field_utm_tag__write_uid
 msgid "Last Updated by"
 msgstr "Zadnjič posodobil"
 
@@ -135,12 +216,14 @@ msgstr "Zadnjič posodobil"
 #: model:ir.model.fields,field_description:utm.field_utm_campaign__write_date
 #: model:ir.model.fields,field_description:utm.field_utm_medium__write_date
 #: model:ir.model.fields,field_description:utm.field_utm_source__write_date
+#: model:ir.model.fields,field_description:utm.field_utm_stage__write_date
+#: model:ir.model.fields,field_description:utm.field_utm_tag__write_date
 msgid "Last Updated on"
 msgstr "Zadnjič posodobljeno"
 
 #. module: utm
 #: model:utm.source,name:utm.utm_source_mailing
-msgid "Lead Newsletter"
+msgid "Lead Recall"
 msgstr ""
 
 #. module: utm
@@ -149,19 +232,49 @@ msgid "Link Tracker"
 msgstr "Sledilnik povezavam"
 
 #. module: utm
-#: model:ir.actions.act_window,name:utm.utm_medium_action
-#: model:ir.model.fields,field_description:utm.field_utm_mixin__medium_id
-#: model:ir.ui.menu,name:utm.menu_utm_medium
-#: model_terms:ir.ui.view,arch_db:utm.utm_medium_view_tree
-#: model_terms:ir.ui.view,arch_db:utm.utm_source_view_tree
-msgid "Medium"
-msgstr "Srednje"
+#: model:utm.tag,name:utm.utm_tag_1
+msgid "Marketing"
+msgstr "Marketing"
 
 #. module: utm
-#: model:utm.campaign,name:utm.utm_campaign_email_campaign_products
+#: model:ir.model.fields,field_description:utm.field_utm_mixin__medium_id
+#: model_terms:ir.ui.view,arch_db:utm.utm_medium_view_form
+msgid "Medium"
+msgstr "Medij"
+
+#. module: utm
+#: model:ir.model.fields,field_description:utm.field_utm_medium__name
+msgid "Medium Name"
+msgstr ""
+
+#. module: utm
+#: model:ir.actions.act_window,name:utm.utm_medium_action
+#: model:ir.ui.menu,name:utm.menu_utm_medium
+#: model_terms:ir.ui.view,arch_db:utm.utm_medium_view_tree
+msgid "Mediums"
+msgstr ""
+
+#. module: utm
+#: model:ir.model.fields,field_description:utm.field_utm_stage__name
+#: model:ir.model.fields,field_description:utm.field_utm_tag__name
+msgid "Name"
+msgstr "Naziv"
+
+#. module: utm
+#: model:utm.stage,name:utm.default_utm_stage
+msgid "New"
+msgstr "Novo"
+
+#. module: utm
 #: model:utm.source,name:utm.utm_source_newsletter
 msgid "Newsletter"
 msgstr "Novice"
+
+#. module: utm
+#: model:ir.model.fields,field_description:utm.field_utm_campaign__user_id
+#: model_terms:ir.ui.view,arch_db:utm.view_utm_campaign_view_search
+msgid "Responsible"
+msgstr "Odgovoren"
 
 #. module: utm
 #: model:utm.campaign,name:utm.utm_campaign_fall_drive
@@ -169,12 +282,39 @@ msgid "Sale"
 msgstr "Prodaja"
 
 #. module: utm
+#: model:utm.stage,name:utm.campaign_stage_1
+msgid "Schedule"
+msgstr "Razpored"
+
+#. module: utm
+#: model_terms:ir.ui.view,arch_db:utm.utm_medium_view_search
+msgid "Search UTM Medium"
+msgstr ""
+
+#. module: utm
 #: model:utm.source,name:utm.utm_source_search_engine
 msgid "Search engine"
 msgstr "Iskalnik"
 
 #. module: utm
+#: model:utm.stage,name:utm.campaign_stage_3
+msgid "Sent"
+msgstr "Poslano"
+
+#. module: utm
+#: model:ir.model.fields,field_description:utm.field_utm_stage__sequence
+msgid "Sequence"
+msgstr "Zaporedje"
+
+#. module: utm
+#: model_terms:ir.ui.view,arch_db:utm.utm_campaign_view_kanban
+msgid "Settings"
+msgstr "Nastavitve"
+
+#. module: utm
 #: model:ir.model.fields,field_description:utm.field_utm_mixin__source_id
+#: model_terms:ir.ui.view,arch_db:utm.utm_source_view_form
+#: model_terms:ir.ui.view,arch_db:utm.utm_source_view_tree
 msgid "Source"
 msgstr "Vir"
 
@@ -190,16 +330,47 @@ msgid "Sources"
 msgstr "Izvori"
 
 #. module: utm
+#: model:ir.model.fields,field_description:utm.field_utm_campaign__stage_id
+#: model_terms:ir.ui.view,arch_db:utm.view_utm_campaign_view_search
+msgid "Stage"
+msgstr "Stopnja"
+
+#. module: utm
+#: model_terms:ir.ui.view,arch_db:utm.utm_stage_view_search
+#: model_terms:ir.ui.view,arch_db:utm.utm_stage_view_tree
+msgid "Stages"
+msgstr "Stopnje"
+
+#. module: utm
+#: model_terms:ir.actions.act_window,help:utm.action_view_utm_stage
+msgid ""
+"Stages allow you to organize your workflow  (e.g. : plan, design, in "
+"progress,  done, …)."
+msgstr ""
+
+#. module: utm
+#: model:ir.model.constraint,message:utm.constraint_utm_tag_name_uniq
+msgid "Tag name already exists !"
+msgstr "Označba že obstaja!"
+
+#. module: utm
+#: model:ir.model.fields,field_description:utm.field_utm_campaign__tag_ids
+msgid "Tags"
+msgstr "Ključne besede"
+
+#. module: utm
 #: model:ir.model.fields,help:utm.field_utm_mixin__campaign_id
 msgid ""
 "This is a name that helps you keep track of your different campaign efforts,"
 " e.g. Fall_Drive, Christmas_Special"
 msgstr ""
+"Naziv, ki pomaga slediti različnim kampanjam, Primer: Posebna_ponudba, "
+"Božična_akcija"
 
 #. module: utm
 #: model:ir.model.fields,help:utm.field_utm_mixin__medium_id
 msgid "This is the method of delivery, e.g. Postcard, Email, or Banner Ad"
-msgstr ""
+msgstr "Metoda dostave. Primer: razglednica, E-pošta, pasica, ..."
 
 #. module: utm
 #: model:ir.model.fields,help:utm.field_utm_mixin__source_id
@@ -207,15 +378,23 @@ msgid ""
 "This is the source of the link, e.g. Search Engine, another domain, or name "
 "of email list"
 msgstr ""
+"Vir povezave. Primer: Iskalnik, druga domena, naziv e-poštnega seznama"
 
 #. module: utm
 #: model:utm.source,name:utm.utm_source_twitter
 msgid "Twitter"
-msgstr ""
+msgstr "Twitter"
 
 #. module: utm
 #: model:ir.model,name:utm.model_utm_campaign
+#: model_terms:ir.ui.view,arch_db:utm.utm_campaign_view_form
 msgid "UTM Campaign"
+msgstr "UTM kampanja"
+
+#. module: utm
+#: model_terms:ir.ui.view,arch_db:utm.utm_campaign_view_tree
+#: model_terms:ir.ui.view,arch_db:utm.view_utm_campaign_view_search
+msgid "UTM Campaigns"
 msgstr ""
 
 #. module: utm
@@ -234,6 +413,21 @@ msgid "UTM Source"
 msgstr ""
 
 #. module: utm
+#: model:ir.actions.act_window,name:utm.action_view_utm_stage
+msgid "UTM Stages"
+msgstr ""
+
+#. module: utm
+#: model:ir.model,name:utm.model_utm_tag
+msgid "UTM Tag"
+msgstr ""
+
+#. module: utm
 #: model:ir.ui.menu,name:utm.marketing_utm
 msgid "UTMs"
+msgstr ""
+
+#. module: utm
+#: model_terms:ir.actions.act_window,help:utm.action_view_utm_tag
+msgid "Use tags to organize campaigns and easily filter them."
 msgstr ""

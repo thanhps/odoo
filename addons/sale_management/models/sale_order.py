@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from odoo import api, fields, models, _
-from odoo.addons import decimal_precision as dp
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 
 
 class SaleOrder(models.Model):
@@ -13,19 +12,27 @@ class SaleOrder(models.Model):
 
     sale_order_template_id = fields.Many2one(
         'sale.order.template', 'Quotation Template',
-        readonly=True,
-        states={'draft': [('readonly', False)], 'sent': [('readonly', False)]})
+        readonly=True, check_company=True,
+        states={'draft': [('readonly', False)], 'sent': [('readonly', False)]},
+        domain="['|', ('company_id', '=', False), ('company_id', '=', company_id)]")
     sale_order_option_ids = fields.One2many(
         'sale.order.option', 'order_id', 'Optional Products Lines',
         copy=True, readonly=True,
         states={'draft': [('readonly', False)], 'sent': [('readonly', False)]})
 
-    @api.multi
+    @api.constrains('company_id', 'sale_order_option_ids')
+    def _check_optional_product_company_id(self):
+        for order in self:
+            companies = order.sale_order_option_ids.product_id.company_id
+            if companies and companies != order.company_id:
+                bad_products = order.sale_order_option_ids.product_id.filtered(lambda p: p.company_id and p.company_id != order.company_id)
+                raise ValidationError((_("Your quotation contains products from company %s whereas your quotation belongs to company %s. \n Please change the company of your quotation or remove the products from other companies (%s).") % (', '.join(companies.mapped('display_name')), order.company_id.display_name, ', '.join(bad_products.mapped('display_name')))))
+
     @api.returns('self', lambda value: value.id)
     def copy(self, default=None):
         if self.sale_order_template_id and self.sale_order_template_id.number_of_days > 0:
             default = dict(default or {})
-            default['validity_date'] = fields.Date.to_string(datetime.now() + timedelta(self.sale_order_template_id.number_of_days))
+            default['validity_date'] = fields.Date.context_today(self) + timedelta(self.sale_order_template_id.number_of_days)
         return super(SaleOrder, self).copy(default=default)
 
     @api.onchange('partner_id')
@@ -72,6 +79,12 @@ class SaleOrder(models.Model):
                     price = self.pricelist_id.with_context(uom=line.product_uom_id.id).get_product_price(line.product_id, 1, False)
                     if self.pricelist_id.discount_policy == 'without_discount' and line.price_unit:
                         discount = (line.price_unit - price) / line.price_unit * 100
+                        # negative discounts (= surcharge) are included in the display price
+                        if discount < 0:
+                            discount = 0
+                        else:
+                            price = line.price_unit
+                    elif line.price_unit:
                         price = line.price_unit
 
                 else:
@@ -92,14 +105,14 @@ class SaleOrder(models.Model):
         self.order_line = order_lines
         self.order_line._compute_tax_id()
 
-        option_lines = []
+        option_lines = [(5, 0, 0)]
         for option in template.sale_order_template_option_ids:
             data = self._compute_option_data_for_template_change(option)
             option_lines.append((0, 0, data))
         self.sale_order_option_ids = option_lines
 
         if template.number_of_days > 0:
-            self.validity_date = fields.Date.to_string(datetime.now() + timedelta(template.number_of_days))
+            self.validity_date = fields.Date.context_today(self) + timedelta(template.number_of_days)
 
         self.require_signature = template.require_signature
         self.require_payment = template.require_payment
@@ -107,7 +120,6 @@ class SaleOrder(models.Model):
         if template.note:
             self.note = template.note
 
-    @api.multi
     def action_confirm(self):
         res = super(SaleOrder, self).action_confirm()
         for order in self:
@@ -115,7 +127,6 @@ class SaleOrder(models.Model):
                 self.sale_order_template_id.mail_template_id.send_mail(order.id)
         return res
 
-    @api.multi
     def get_access_action(self, access_uid=None):
         """ Instead of the classic form view, redirect to the online quote if it exists. """
         self.ensure_one()
@@ -154,37 +165,52 @@ class SaleOrderOption(models.Model):
     _description = "Sale Options"
     _order = 'sequence, id'
 
+    is_present = fields.Boolean(string="Present on Quotation",
+                           help="This field will be checked if the option line's product is "
+                                "already present in the quotation.",
+                           compute="_compute_is_present", search="_search_is_present")
     order_id = fields.Many2one('sale.order', 'Sales Order Reference', ondelete='cascade', index=True)
-    line_id = fields.Many2one('sale.order.line', on_delete="set null")
+    line_id = fields.Many2one('sale.order.line', ondelete="set null", copy=False)
     name = fields.Text('Description', required=True)
     product_id = fields.Many2one('product.product', 'Product', required=True, domain=[('sale_ok', '=', True)])
-    price_unit = fields.Float('Unit Price', required=True, digits=dp.get_precision('Product Price'))
-    discount = fields.Float('Discount (%)', digits=dp.get_precision('Discount'))
-    uom_id = fields.Many2one('uom.uom', 'Unit of Measure ', required=True)
-    quantity = fields.Float('Quantity', required=True, digits=dp.get_precision('Product UoS'), default=1)
+    price_unit = fields.Float('Unit Price', required=True, digits='Product Price')
+    discount = fields.Float('Discount (%)', digits='Discount')
+    uom_id = fields.Many2one('uom.uom', 'Unit of Measure ', required=True, domain="[('category_id', '=', product_uom_category_id)]")
+    product_uom_category_id = fields.Many2one(related='product_id.uom_id.category_id', readonly=True)
+    quantity = fields.Float('Quantity', required=True, digits='Product UoS', default=1)
     sequence = fields.Integer('Sequence', help="Gives the sequence order when displaying a list of optional products.")
+
+    @api.depends('line_id', 'order_id.order_line', 'product_id')
+    def _compute_is_present(self):
+        # NOTE: this field cannot be stored as the line_id is usually removed
+        # through cascade deletion, which means the compute would be false
+        for option in self:
+            option.is_present = bool(option.order_id.order_line.filtered(lambda l: l.product_id == option.product_id))
+
+    def _search_is_present(self, operator, value):
+        if (operator, value) in [('=', True), ('!=', False)]:
+            return [('line_id', '=', False)]
+        return [('line_id', '!=', False)]
 
     @api.onchange('product_id', 'uom_id')
     def _onchange_product_id(self):
         if not self.product_id:
             return
         product = self.product_id.with_context(lang=self.order_id.partner_id.lang)
-        self.price_unit = product.list_price
         self.name = product.get_product_multiline_description_sale()
         self.uom_id = self.uom_id or product.uom_id
-        pricelist = self.order_id.pricelist_id
-        if pricelist and product:
-            partner_id = self.order_id.partner_id.id
-            self.price_unit = pricelist.with_context(uom=self.uom_id.id).get_product_price(product, self.quantity, partner_id)
         domain = {'uom_id': [('category_id', '=', self.product_id.uom_id.category_id.id)]}
+        # To compute the dicount a so line is created in cache
+        values = self._get_values_to_add_to_order()
+        new_sol = self.env['sale.order.line'].new(values)
+        new_sol._onchange_discount()
+        self.discount = new_sol.discount
+        self.price_unit = new_sol._get_display_price(product)
         return {'domain': domain}
 
-    @api.multi
     def button_add_to_order(self):
         self.add_option_to_order()
-        return {'type': 'ir.actions.client', 'tag': 'reload'}
 
-    @api.multi
     def add_option_to_order(self):
         self.ensure_one()
 
@@ -199,7 +225,6 @@ class SaleOrderOption(models.Model):
 
         self.write({'line_id': order_line.id})
 
-    @api.multi
     def _get_values_to_add_to_order(self):
         self.ensure_one()
         return {

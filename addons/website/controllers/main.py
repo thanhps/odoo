@@ -5,6 +5,7 @@ import datetime
 import json
 import os
 import logging
+import pytz
 import requests
 import werkzeug.utils
 import werkzeug.wrappers
@@ -16,7 +17,7 @@ import odoo
 
 from odoo import http, models, fields, _
 from odoo.http import request
-from odoo.tools import pycompat, OrderedSet
+from odoo.tools import OrderedSet
 from odoo.addons.http_routing.models.ir_http import slug, _guess_mimetype
 from odoo.addons.web.controllers.main import Binary
 from odoo.addons.portal.controllers.portal import pager as portal_pager
@@ -76,7 +77,7 @@ class Website(Home):
         else:
             top_menu = request.website.menu_id
             first_menu = top_menu and top_menu.child_id and top_menu.child_id.filtered(lambda menu: menu.is_visible)
-            if first_menu and first_menu[0].url not in ('/', '') and (not (first_menu[0].url.startswith(('/?', '/#', ' ')))):
+            if first_menu and first_menu[0].url not in ('/', '', '#') and (not (first_menu[0].url.startswith(('/?', '/#', ' ')))):
                 return request.redirect(first_menu[0].url)
 
         raise request.not_found()
@@ -91,14 +92,14 @@ class Website(Home):
     # while portal users are redirected to the frontend by default
     # ------------------------------------------------------
 
-    @http.route(website=True, auth="public")
+    @http.route(website=True, auth="public", sitemap=False)
     def web_login(self, redirect=None, *args, **kw):
         response = super(Website, self).web_login(redirect=redirect, *args, **kw)
         if not redirect and request.params['login_success']:
             if request.env['res.users'].browse(request.uid).has_group('base.group_user'):
                 redirect = b'/web?' + request.httprequest.query_string
             else:
-                redirect = '/'
+                redirect = '/my'
             return http.redirect_with_hash(redirect)
         return response
 
@@ -106,13 +107,19 @@ class Website(Home):
     # Business
     # ------------------------------------------------------
 
+    @http.route('/website/get_languages', type='json', auth="user", website=True)
+    def website_languages(self, **kwargs):
+        return [(lg.code, lg.url_code, lg.name) for lg in request.website.language_ids]
+
     @http.route('/website/lang/<lang>', type='http', auth="public", website=True, multilang=False)
     def change_lang(self, lang, r='/', **kwargs):
+        """ :param lang: supposed to be value of `url_code` field """
         if lang == 'default':
-            lang = request.website.default_lang_code
+            lang = request.website.default_lang_id.url_code
             r = '/%s%s' % (lang, r or '/')
         redirect = werkzeug.utils.redirect(r or ('/%s' % lang), 303)
-        redirect.set_cookie('frontend_lang', lang)
+        lang_code = request.env['res.lang']._lang_get_code(lang)
+        redirect.set_cookie('frontend_lang', lang_code)
         return redirect
 
     @http.route(['/website/country_infos/<model("res.country"):country>'], type='json', auth="public", methods=['POST'], website=True)
@@ -124,7 +131,7 @@ class Website(Home):
     def robots(self, **kwargs):
         return request.render('website.robots', {'url_root': request.httprequest.url_root}, mimetype='text/plain')
 
-    @http.route('/sitemap.xml', type='http', auth="public", website=True, multilang=False)
+    @http.route('/sitemap.xml', type='http', auth="public", website=True, multilang=False, sitemap=False)
     def sitemap_xml_index(self, **kwargs):
         current_website = request.website
         Attachment = request.env['ir.attachment'].sudo()
@@ -157,7 +164,7 @@ class Website(Home):
             sitemaps.unlink()
 
             pages = 0
-            locs = request.website.sudo(user=request.website.user_id.id).enumerate_pages()
+            locs = request.website.with_user(request.website.user_id).enumerate_pages()
             while True:
                 values = {
                     'locs': islice(locs, 0, LOC_PER_SITEMAP),
@@ -200,10 +207,10 @@ class Website(Home):
             return request.env['ir.http']._handle_exception(e, 404)
         Module = request.env['ir.module.module'].sudo()
         apps = Module.search([('state', '=', 'installed'), ('application', '=', True)])
-        modules = Module.search([('state', '=', 'installed'), ('application', '=', False)])
+        l10n = Module.search([('state', '=', 'installed'), ('name', '=like', 'l10n_%')])
         values = {
             'apps': apps,
-            'modules': modules,
+            'l10n': l10n,
             'version': odoo.service.common.exp_version()
         }
         return request.render('website.website_info', values)
@@ -276,49 +283,30 @@ class Website(Home):
             return werkzeug.utils.redirect('/web#id=' + str(page.get('view_id')) + '&view_type=form&model=ir.ui.view')
         return werkzeug.utils.redirect(url + "?enable_editor=1")
 
-    @http.route(['/website/snippets'], type='json', auth="user", website=True)
-    def snippets(self):
-        return request.env['ir.ui.view'].render_template('website.snippets')
-
     @http.route("/website/get_switchable_related_views", type="json", auth="user", website=True)
     def get_switchable_related_views(self, key):
         views = request.env["ir.ui.view"].get_related_views(key, bundles=False).filtered(lambda v: v.customize_show)
         views = views.sorted(key=lambda v: (v.inherit_id.id, v.name))
         return views.read(['name', 'id', 'key', 'xml_id', 'arch', 'active', 'inherit_id'])
 
-    @http.route('/website/reset_templates', type='http', auth='user', methods=['POST'], website=True, csrf=False)
-    def reset_template(self, templates, redirect='/', **kwargs):
-        """ This method will try to reset a list of broken views ids.
-        It will read the original `arch` from the view's XML file (arch_fs).
-        Views without an `arch_fs` can't be reset, except views created when
-        dropping a snippet in specific oe_structure that create an inherited
-        view doing an xpath.
-        Note: The `arch_fs` field is automatically erased when there is a
-              write on the `arch` field.
+    @http.route('/website/toggle_switchable_view', type='json', auth='user', website=True)
+    def toggle_switchable_view(self, view_key):
+        request.website.viewref(view_key).toggle()
 
-        This method is typically useful to reset specific views. In that case we
-        read the XML file from the generic view.
+    @http.route('/website/reset_template', type='http', auth='user', methods=['POST'], website=True, csrf=False)
+    def reset_template(self, view_id, mode='soft', redirect='/', **kwargs):
+        """ This method will try to reset a broken view.
+        Given the mode, the view can either be:
+        - Soft reset: restore to previous architeture.
+        - Hard reset: it will read the original `arch` from the XML file if the
+        view comes from an XML file (arch_fs).
         """
-        templates = request.httprequest.form.getlist('templates')
-        for temp_id in templates:
-            view = request.env['ir.ui.view'].browse(int(temp_id))
-            if 'oe_structure' in view.key:
-                # Particular xpathing view created in edit mode
-                view.unlink()
-                continue
-            xml_view = view._get_original_view()  # view might already be the xml_view
-            if xml_view.arch_fs:
-                view_file_arch = xml_view.with_context(read_arch_from_file=True).arch
-                # Deactivate COW to not fix a generic view by creating a specific
-                view.with_context(website_id=None).arch_db = view_file_arch
-                if view == xml_view:
-                    view.model_data_id.write({
-                        'noupdate': False
-                    })
-
+        view = request.env['ir.ui.view'].browse(int(view_id))
+        # Deactivate COW to not fix a generic view by creating a specific
+        view.with_context(website_id=None).reset_arch(mode)
         return request.redirect(redirect)
 
-    @http.route(['/website/publish'], type='json', auth="public", website=True)
+    @http.route(['/website/publish'], type='json', auth="user", website=True)
     def publish(self, id, object):
         Model = request.env[object]
         record = Model.browse(int(id))
@@ -347,50 +335,34 @@ class Website(Home):
     # Themes
     # ------------------------------------------------------
 
-    def get_view_ids(self, xml_ids):
-        ids = []
+    def _get_customize_views(self, xml_ids):
         View = request.env["ir.ui.view"].with_context(active_test=False)
-        for xml_id in xml_ids:
-            if "." in xml_id:
-                # Get website-specific view if possible
-                record_id = View.search([
-                    ("website_id", "=", request.website.id),
-                    ("key", "=", xml_id),
-                ], limit=1).id or request.env.ref(xml_id).id
-            else:
-                record_id = int(xml_id)
-            ids.append(record_id)
-        return ids
+        if not xml_ids:
+            return View
+        domain = [("key", "in", xml_ids)] + request.website.website_domain()
+        return View.search(domain).filter_duplicate()
 
     @http.route(['/website/theme_customize_get'], type='json', auth="public", website=True)
     def theme_customize_get(self, xml_ids):
-        enable = []
-        disable = []
-        ids = self.get_view_ids(xml_ids)
-        for view in request.env['ir.ui.view'].browse(ids):
-            if view.active:
-                enable.append(view.key)
-            else:
-                disable.append(view.key)
-        return [enable, disable]
+        views = self._get_customize_views(xml_ids)
+        return {
+            'enabled': views.filtered('active').mapped('key'),
+            'names': {view.key: view.name for view in views},
+        }
 
     @http.route(['/website/theme_customize'], type='json', auth="public", website=True)
-    def theme_customize(self, enable, disable, get_bundle=False):
+    def theme_customize(self, enable=None, disable=None, get_bundle=False):
         """ enable or Disable lists of ``xml_id`` of the inherit templates """
-        def set_active(xml_ids, active):
-            if xml_ids:
-                real_ids = self.get_view_ids(xml_ids)
-                request.env['ir.ui.view'].browse(real_ids).write({'active': active})
 
-        set_active(disable, False)
-        set_active(enable, True)
+        self._get_customize_views(disable).write({'active': False})
+        self._get_customize_views(enable).write({'active': True})
 
         if get_bundle:
             context = dict(request.context)
             return {
-                'web.assets_common': request.env["ir.qweb"]._get_asset('web.assets_common', options=context),
-                'web.assets_frontend': request.env["ir.qweb"]._get_asset('web.assets_frontend', options=context),
-                'website.assets_editor': request.env["ir.qweb"]._get_asset('website.assets_editor', options=context),
+                'web.assets_common': request.env['ir.qweb']._get_asset_link_urls('web.assets_common', options=context),
+                'web.assets_frontend': request.env['ir.qweb']._get_asset_link_urls('web.assets_frontend', options=context),
+                'website.assets_editor': request.env['ir.qweb']._get_asset_link_urls('website.assets_editor', options=context),
             }
 
         return True
@@ -400,6 +372,25 @@ class Website(Home):
         self.theme_customize(enable and enable.split(",") or [], disable and disable.split(",") or [])
         return request.redirect(href + ("&theme=true" if "#" in href else "#theme=true") + ("&tab=" + tab))
 
+    @http.route(['/website/make_scss_custo'], type='json', auth='user', website=True)
+    def make_scss_custo(self, url, values):
+        """
+        Params:
+            url (str):
+                the URL of the scss file to customize (supposed to be a variable
+                file which will appear in the assets_common bundle)
+
+            values (dict):
+                key,value mapping to integrate in the file's map (containing the
+                word hook). If a key is already in the file's map, its value is
+                overridden.
+
+        Returns:
+            boolean
+        """
+        request.env['web_editor.assets'].make_scss_customization(url, values)
+        return True
+
     @http.route(['/website/multi_render'], type='json', auth="public", website=True)
     def multi_render(self, ids_or_xml_ids, values=None):
         View = request.env['ir.ui.view']
@@ -407,6 +398,15 @@ class Website(Home):
         for id_or_xml_id in ids_or_xml_ids:
             res[id_or_xml_id] = View.render_template(id_or_xml_id, values)
         return res
+
+    @http.route(['/website/update_visitor_timezone'], type='json', auth="public", website=True)
+    def update_visitor_timezone(self, timezone):
+        visitor_sudo = request.env['website.visitor']._get_visitor_from_request()
+        if visitor_sudo:
+            if timezone in pytz.all_timezones:
+                visitor_sudo.write({'timezone': timezone})
+                return True
+        return False
 
     # ------------------------------------------------------
     # Server actions
@@ -421,7 +421,7 @@ class Website(Home):
         action = action_id = None
 
         # find the action_id: either an xml_id, the path, or an ID
-        if isinstance(path_or_xml_id_or_id, pycompat.string_types) and '.' in path_or_xml_id_or_id:
+        if isinstance(path_or_xml_id_or_id, str) and '.' in path_or_xml_id_or_id:
             action = request.env.ref(path_or_xml_id_or_id, raise_if_not_found=False)
         if not action:
             action = ServerActions.search([('website_path', '=', path_or_xml_id_or_id), ('website_published', '=', True)], limit=1)
@@ -469,3 +469,8 @@ class WebsiteBinary(http.Controller):
             if unique:
                 kw['unique'] = unique
         return Binary().content_image(**kw)
+
+    @http.route(['/favicon.ico'], type='http', auth='public', website=True, multilang=False, sitemap=False)
+    def favicon(self, **kw):
+        # when opening a pdf in chrome, chrome tries to open the default favicon url
+        return self.content_image(model='website', id=str(request.website.id), field='favicon', **kw)

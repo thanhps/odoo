@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+from collections import defaultdict
 import itertools
 
 from odoo import api, fields, models
@@ -25,8 +26,8 @@ class Followers(models.Model):
     # (see 'ir.model' inheritance).
     res_model = fields.Char(
         'Related Document Model Name', required=True, index=True)
-    res_id = fields.Integer(
-        'Related Document ID', index=True, help='Id of the followed resource')
+    res_id = fields.Many2oneReference(
+        'Related Document ID', index=True, help='Id of the followed resource', model_field='res_model')
     partner_id = fields.Many2one(
         'res.partner', string='Related Partner', ondelete='cascade', index=True)
     channel_id = fields.Many2one(
@@ -35,24 +36,23 @@ class Followers(models.Model):
         'mail.message.subtype', string='Subtype',
         help="Message subtypes followed, meaning subtypes that will be pushed onto the user's Wall.")
 
-    #
-    # Modifying followers change access rights to individual documents. As the
-    # cache may contain accessible/inaccessible data, one has to refresh it.
-    #
-    @api.multi
-    def _invalidate_documents(self):
-        """ Invalidate the cache of the documents followed by ``self``. """
-        for record in self:
-            if record.res_id:
-                self.env[record.res_model].invalidate_cache(ids=[record.res_id])
+    def _invalidate_documents(self, vals_list=None):
+        """ Invalidate the cache of the documents followed by ``self``.
+
+        Modifying followers change access rights to individual documents. As the
+        cache may contain accessible/inaccessible data, one has to refresh it.
+        """
+        to_invalidate = defaultdict(list)
+        for record in (vals_list or [{'res_model': rec.res_model, 'res_id': rec.res_id} for rec in self]):
+            if record.get('res_id'):
+                to_invalidate[record.get('res_model')].append(record.get('res_id'))
 
     @api.model_create_multi
     def create(self, vals_list):
         res = super(Followers, self).create(vals_list)
-        res._invalidate_documents()
+        res._invalidate_documents(vals_list)
         return res
 
-    @api.multi
     def write(self, vals):
         if 'res_model' in vals or 'res_id' in vals:
             self._invalidate_documents()
@@ -61,7 +61,6 @@ class Followers(models.Model):
             self._invalidate_documents()
         return res
 
-    @api.multi
     def unlink(self):
         self._invalidate_documents()
         return super(Followers, self).unlink()
@@ -76,7 +75,7 @@ class Followers(models.Model):
     # Private tools methods to fetch followers data
     # --------------------------------------------------
 
-    def _get_recipient_data(self, records, subtype_id, pids=None, cids=None):
+    def _get_recipient_data(self, records, message_type, subtype_id, pids=None, cids=None):
         """ Private method allowing to fetch recipients data based on a subtype.
         Purpose of this method is to fetch all data necessary to notify recipients
         in a single query. It fetches data from
@@ -87,6 +86,7 @@ class Followers(models.Model):
          * channels if cids is given;
 
         :param records: fetch data from followers of records that follow subtype_id;
+        :param message_type: mail.message.message_type in order to allow custom behavior depending on it (SMS for example);
         :param subtype_id: mail.message.subtype to check against followers;
         :param pids: additional set of partner IDs from which to fetch recipient data;
         :param cids: additional set of channel IDs from which to fetch recipient data;
@@ -99,39 +99,48 @@ class Followers(models.Model):
           notification status of partner or channel (email or inbox),
           user groups of partner (void as irrelevant if channel ID),
         """
+        self.env['mail.followers'].flush(['partner_id', 'channel_id', 'subtype_ids'])
+        self.env['mail.message.subtype'].flush(['internal'])
+        self.env['res.users'].flush(['notification_type', 'active', 'partner_id', 'groups_id'])
+        self.env['res.partner'].flush(['active', 'partner_share'])
+        self.env['res.groups'].flush(['users'])
+        self.env['mail.channel'].flush(['email_send', 'channel_type'])
         if records and subtype_id:
             query = """
-WITH sub_followers AS (
-    SELECT fol.id, fol.partner_id, fol.channel_id, subtype.internal
-    FROM mail_followers fol
-        RIGHT JOIN mail_followers_mail_message_subtype_rel subrel
-        ON subrel.mail_followers_id = fol.id
-        RIGHT JOIN mail_message_subtype subtype
-        ON subtype.id = subrel.mail_message_subtype_id
-    WHERE subrel.mail_message_subtype_id = %%s AND fol.res_model = %%s AND fol.res_id IN %%s
-)
-SELECT partner.id as pid, NULL AS cid,
-        partner.active as active, partner.partner_share as pshare, NULL as ctype,
-        users.notification_type AS notif, array_agg(groups.id) AS groups
-    FROM res_partner partner
-    LEFT JOIN res_users users ON users.partner_id = partner.id AND users.active
-    LEFT JOIN res_groups_users_rel groups_rel ON groups_rel.uid = users.id
-    LEFT JOIN res_groups groups ON groups.id = groups_rel.gid
-    WHERE EXISTS (
-        SELECT partner_id FROM sub_followers
-        WHERE sub_followers.channel_id IS NULL
-            AND sub_followers.partner_id = partner.id
-            AND (coalesce(sub_followers.internal, false) <> TRUE OR coalesce(partner.partner_share, false) <> TRUE)
-    ) %s
-    GROUP BY partner.id, users.notification_type
-UNION
-SELECT NULL AS pid, channel.id AS cid,
-        TRUE as active, NULL AS pshare, channel.channel_type AS ctype,
-        CASE WHEN channel.email_send = TRUE THEN 'email' ELSE 'inbox' END AS notif, NULL AS groups
-    FROM mail_channel channel
-    WHERE EXISTS (
-        SELECT channel_id FROM sub_followers WHERE partner_id IS NULL AND sub_followers.channel_id = channel.id
-    ) %s
+SELECT DISTINCT ON(pid, cid) * FROM (
+    WITH sub_followers AS (
+        SELECT fol.id, fol.partner_id, fol.channel_id, subtype.internal
+        FROM mail_followers fol
+            RIGHT JOIN mail_followers_mail_message_subtype_rel subrel
+            ON subrel.mail_followers_id = fol.id
+            RIGHT JOIN mail_message_subtype subtype
+            ON subtype.id = subrel.mail_message_subtype_id
+        WHERE subrel.mail_message_subtype_id = %%s AND fol.res_model = %%s AND fol.res_id IN %%s
+    )
+    SELECT partner.id as pid, NULL::int AS cid,
+            partner.active as active, partner.partner_share as pshare, NULL as ctype,
+            users.notification_type AS notif, array_agg(groups.id) AS groups
+        FROM res_partner partner
+        LEFT JOIN res_users users ON users.partner_id = partner.id AND users.active
+        LEFT JOIN res_groups_users_rel groups_rel ON groups_rel.uid = users.id
+        LEFT JOIN res_groups groups ON groups.id = groups_rel.gid
+        WHERE EXISTS (
+            SELECT partner_id FROM sub_followers
+            WHERE sub_followers.channel_id IS NULL
+                AND sub_followers.partner_id = partner.id
+                AND (coalesce(sub_followers.internal, false) <> TRUE OR coalesce(partner.partner_share, false) <> TRUE)
+        ) %s
+        GROUP BY partner.id, users.notification_type
+    UNION
+    SELECT NULL::int AS pid, channel.id AS cid,
+            TRUE as active, NULL AS pshare, channel.channel_type AS ctype,
+            CASE WHEN channel.email_send = TRUE THEN 'email' ELSE 'inbox' END AS notif, NULL AS groups
+        FROM mail_channel channel
+        WHERE EXISTS (
+            SELECT channel_id FROM sub_followers WHERE partner_id IS NULL AND sub_followers.channel_id = channel.id
+        ) %s
+) AS x
+ORDER BY pid, cid, notif
 """ % ('OR partner.id IN %s' if pids else '', 'OR channel.id IN %s' if cids else '')
             params = [subtype_id, records._name, tuple(records.ids)]
             if pids:
@@ -144,16 +153,17 @@ SELECT NULL AS pid, channel.id AS cid,
             params, query_pid, query_cid = [], '', ''
             if pids:
                 query_pid = """
-SELECT partner.id as pid, NULL AS cid,
+SELECT DISTINCT ON (partner.id) partner.id as pid, NULL::int AS cid,
     partner.active as active, partner.partner_share as pshare, NULL as ctype,
     users.notification_type AS notif, NULL AS groups
 FROM res_partner partner
 LEFT JOIN res_users users ON users.partner_id = partner.id AND users.active
-WHERE partner.id IN %s"""
+WHERE partner.id IN %s
+ORDER BY partner.id, users.notification_type"""
                 params.append(tuple(pids))
             if cids:
                 query_cid = """
-SELECT NULL AS pid, channel.id AS cid,
+SELECT NULL::int AS pid, channel.id AS cid,
     TRUE as active, NULL AS pshare, channel.channel_type AS ctype,
     CASE when channel.email_send = TRUE then 'email' else 'inbox' end AS notif, NULL AS groups
 FROM mail_channel channel WHERE channel.id IN %s """
@@ -235,16 +245,17 @@ GROUP BY fol.id%s""" % (
         :param check_existing: see ``_add_followers``;
         :param existing_policy: see ``_add_followers``;
         """
-        sudo_self = self.sudo()
+        sudo_self = self.sudo().with_context(default_partner_id=False, default_channel_id=False)
         if not partner_subtypes and not channel_subtypes:  # no subtypes -> default computation, no force, skip existing
             new, upd = self._add_default_followers(res_model, res_ids, partner_ids, channel_ids, customer_ids=customer_ids)
         else:
             new, upd = self._add_followers(res_model, res_ids, partner_ids, partner_subtypes, channel_ids, channel_subtypes, check_existing=check_existing, existing_policy=existing_policy)
-        sudo_self.create([
-            dict(values, res_id=res_id)
-            for res_id, values_list in new.items()
-            for values in values_list
-        ])
+        if new:
+            sudo_self.create([
+                dict(values, res_id=res_id)
+                for res_id, values_list in new.items()
+                for values in values_list
+            ])
         for fol_id, values in upd.items():
             sudo_self.browse(fol_id).write(values)
 
@@ -319,7 +330,7 @@ GROUP BY fol.id%s""" % (
                 elif existing_policy in ('replace', 'update'):
                     fol_id, sids = next(((key, val[3]) for key, val in data_fols.items() if val[0] == res_id and val[1] == partner_id), (False, []))
                     new_sids = set(partner_subtypes[partner_id]) - set(sids)
-                    old_sids = set(sids) - set(partner_subtypes[partner_id])
+                    old_sids = set(sids  if sids[0] is not None else []) - set(partner_subtypes[partner_id])
                     if fol_id and new_sids:
                         update[fol_id] = {'subtype_ids': [(4, sid) for sid in new_sids]}
                     if fol_id and old_sids and existing_policy == 'replace':

@@ -1,9 +1,9 @@
-odoo.define('website.snippets.options', function (require) {
+odoo.define('website.editor.snippets.options', function (require) {
 'use strict';
 
 var core = require('web.core');
 var Dialog = require('web.Dialog');
-var weWidgets = require('web_editor.widget');
+var weWidgets = require('wysiwyg.widgets');
 var options = require('web_editor.snippets.options');
 
 var _t = core._t;
@@ -16,16 +16,112 @@ options.Class.include({
     //--------------------------------------------------------------------------
 
     /**
-     * Refreshes all animations related to the given element.
+     * Refreshes all public widgets related to the given element.
      *
      * @private
      * @param {jQuery} [$el=this.$target]
      */
-    _refreshAnimations: function ($el) {
-        this.trigger_up('animation_start_demand', {
+    _refreshPublicWidgets: function ($el) {
+        this.trigger_up('widgets_start_request', {
             editableMode: true,
             $target: $el || this.$target,
         });
+    },
+});
+
+options.registry.background.include({
+
+    //--------------------------------------------------------------------------
+    // Private
+    //--------------------------------------------------------------------------
+
+    /**
+     * @override
+     */
+    _getEditableMedia: function () {
+        if (!this._hasBgvideo()) {
+            return this._super(...arguments);
+        }
+        return this.$('.o_bg_video_iframe')[0];
+    },
+    /**
+     * @override
+     */
+    _getMediaDialogOptions: function () {
+        return _.extend(this._super(...arguments), {
+            // For now, disable the possibility to have a parallax video bg
+            noVideos: this.$target.is('.parallax, .s_parallax_bg'),
+            isForBgVideo: true,
+        });
+    },
+    /**
+     * @override
+     */
+    _setActive: function () {
+        this._super(...arguments);
+        if (this._hasBgvideo()) {
+            this.$el.find('[data-choose-image]').addClass('active');
+        }
+    },
+    /**
+     * Updates the background video used by the snippet.
+     *
+     * @private
+     * @see this.selectClass for parameters
+     */
+    _setBgVideo: function (previewMode, value) {
+        this.$('> .o_bg_video_container').toggleClass('d-none', previewMode === true);
+
+        if (previewMode !== false) {
+            return;
+        }
+
+        var target = this.$target[0];
+        target.classList.toggle('o_background_video', !!(value && value.length));
+        if (value && value.length) {
+            target.dataset.bgVideoSrc = value;
+        } else {
+            delete target.dataset.bgVideoSrc;
+        }
+        this._refreshPublicWidgets();
+        this._setActive();
+    },
+    /**
+     * Returns whether the current target has a background video or not.
+     *
+     * @private
+     * @returns {boolean}
+     */
+    _hasBgvideo: function () {
+        return this.$target[0].classList.contains('o_background_video');
+    },
+
+    //--------------------------------------------------------------------------
+    // Handlers
+    //--------------------------------------------------------------------------
+
+    /**
+     * @override
+     */
+     _onBackgroundColorUpdate: function (ev, previewMode) {
+        var ret = this._super(...arguments);
+        if (ret) {
+            this._setBgVideo(previewMode);
+        }
+        return ret;
+    },
+    /**
+     * @override
+     */
+    _onSaveMediaDialog: function (data) {
+        if (!data.bgVideoSrc) {
+            this._setBgVideo(false);
+            this._super(...arguments);
+            return;
+        }
+        // if the user chose a video, only add the video without removing the
+        // background
+        this._setBgVideo(false, data.bgVideoSrc);
     },
 });
 
@@ -57,12 +153,13 @@ options.registry.menu_data = options.Class.extend({
                         actionName: 'edit_menu',
                         params: [
                             function () {
-                                var def = $.Deferred();
-                                self.trigger_up('request_save', {
-                                    onSuccess: def.resolve.bind(def),
-                                    onFailure: def.reject.bind(def),
+                                var prom = new Promise(function (resolve, reject) {
+                                    self.trigger_up('request_save', {
+                                        onSuccess: resolve,
+                                        onFailure: reject,
+                                    });
                                 });
-                                return def;
+                                return prom;
                             },
                         ],
                     });
@@ -82,10 +179,10 @@ options.registry.company_data = options.Class.extend({
      */
     start: function () {
         var proto = options.registry.company_data.prototype;
-        var def;
+        var prom;
         var self = this;
         if (proto.__link === undefined) {
-            def = this._rpc({route: '/web/session/get_session_info'}).then(function (session) {
+            prom = this._rpc({route: '/web/session/get_session_info'}).then(function (session) {
                 return self._rpc({
                     model: 'res.users',
                     method: 'read',
@@ -95,7 +192,7 @@ options.registry.company_data = options.Class.extend({
                 proto.__link = '/web#action=base.action_res_company_form&view_type=form&id=' + (res && res[0] && res[0].company_id[0] || 1);
             });
         }
-        return $.when(this._super.apply(this, arguments), def);
+        return Promise.all([this._super.apply(this, arguments), prom]);
     },
     /**
      * When the users selects company data, opens a dialog to ask him if he
@@ -178,8 +275,14 @@ options.registry.carousel = options.Class.extend({
     onClone: function () {
         var id = 'myCarousel' + new Date().getTime();
         this.$target.attr('id', id);
-        this.$target.find('[data-slide]').attr('href', '#' + id);
-        this.$target.find('[data-slide-to]').attr('data-target', '#' + id);
+        _.each(this.$target.find('[data-slide], [data-slide-to]'), function (el) {
+            var $el = $(el);
+            if ($el.attr('data-target')) {
+                $el.attr('data-target', '#' + id);
+            } else if ($el.attr('href')) {
+                $el.attr('href', '#' + id);
+            }
+        });
     },
     /**
      * @override
@@ -208,7 +311,8 @@ options.registry.carousel = options.Class.extend({
         var $active = this.$inner.find('.carousel-item.active, .carousel-item.prev, .carousel-item.next').first();
         var index = $active.index();
         this.$('.carousel-control-prev, .carousel-control-next, .carousel-indicators').removeClass('d-none');
-        this.$indicators.append('<li data-target="#' + this.id + '" data-slide-to="' + cycle + '"></li>');
+        // we added a space after the <li> in the line below to keep the same space between the indicators
+        this.$indicators.append('<li data-target="#' + this.id + '" data-slide-to="' + cycle + '"></li> ');
         var $clone = $active.clone(true);
         $clone.removeClass('active').insertAfter($active);
         _.defer(function () {
@@ -246,10 +350,7 @@ options.registry.carousel = options.Class.extend({
                 }
             });
             _.defer(function () {
-                self.trigger_up('animation_start_demand', {
-                    editableMode: true,
-                    $target: self.$target,
-                });
+                self._refreshPublicWidgets();
                 self.$target.carousel(index > 0 ? --index : cycle);
             });
         }
@@ -495,10 +596,11 @@ options.registry.layout_column = options.Class.extend({
 
         this.trigger_up('request_history_undo_record', {$target: this.$target});
 
+        var colsLength = this.$target.children().length + count;
         if (count > 0) {
             var $lastColumn = this.$target.children().last();
-            for (var i = 0 ; i < count ; i++) {
-                $lastColumn.clone().insertAfter($lastColumn);
+            for (var i = 0; i < count; i++) {
+                this.trigger_up('clone_snippet', {$snippet: $lastColumn});
             }
         } else {
             var self = this;
@@ -507,17 +609,18 @@ options.registry.layout_column = options.Class.extend({
             });
         }
 
-        this._resizeColumns();
+        this._resizeColumns(colsLength);
         this.trigger_up('cover_update');
     },
     /**
      * Resizes the columns so that they are kept on one row.
      *
      * @private
+     * @param {number} [colsLength] (default to the actual number of columns)
      */
-    _resizeColumns: function () {
+    _resizeColumns: function (colsLength) {
         var $columns = this.$target.children();
-        var colsLength = $columns.length;
+        colsLength = colsLength || $columns.length;
         var colSize = Math.floor(12 / colsLength) || 1;
         var colOffset = Math.floor((12 - colSize * colsLength) / 2);
         var colClass = 'col-lg-' + colSize;
@@ -529,6 +632,9 @@ options.registry.layout_column = options.Class.extend({
         if (colOffset) {
             $columns.first().addClass('offset-lg-' + colOffset);
         }
+        // TODO: remove in master. This is used to keep the UI in sync, but
+        // won't be needed once option methods are properly asynchronous.
+        this.colsLength = colsLength;
     },
     /**
      * @override
@@ -536,7 +642,7 @@ options.registry.layout_column = options.Class.extend({
     _setActive: function () {
         this._super.apply(this, arguments);
         this.$el.find('[data-select-count]').removeClass('active')
-            .filter('[data-select-count=' + this.$target.children().length + ']').addClass('active');
+            .filter('[data-select-count=' + (this.colsLength || this.$target.children().length) + ']').addClass('active');
     },
 });
 
@@ -547,7 +653,7 @@ options.registry.parallax = options.Class.extend({
     start: function () {
         var self = this;
         this.$target.on('snippet-option-change snippet-option-preview', function () {
-            self._refreshAnimations();
+            self._refreshPublicWidgets();
         });
         return this._super.apply(this, arguments);
     },
@@ -564,13 +670,13 @@ options.registry.parallax = options.Class.extend({
         // there may have been changes in the page that influenced the parallax
         // rendering (new snippets, ...).
         // TODO make this automatic.
-        this._refreshAnimations();
+        this._refreshPublicWidgets();
     },
     /**
      * @override
      */
     onMove: function () {
-        this._refreshAnimations();
+        this._refreshPublicWidgets();
     },
 
     //--------------------------------------------------------------------------
@@ -584,7 +690,7 @@ options.registry.parallax = options.Class.extend({
      */
     scroll: function (previewMode, value) {
         this.$target.attr('data-scroll-background-ratio', value);
-        this._refreshAnimations();
+        this._refreshPublicWidgets();
     },
 
     //--------------------------------------------------------------------------
@@ -677,7 +783,7 @@ var FacebookPageDialog = weWidgets.Dialog.extend({
      * @param {boolean} toggle
      */
     _toggleWarning: function (toggle) {
-        this.trigger_up('animation_stop_demand', {
+        this.trigger_up('widgets_stop_request', {
             $target: this.$previewPage,
         });
         this.$('.facebook_page_warning').toggleClass('d-none', toggle);
@@ -707,8 +813,7 @@ var FacebookPageDialog = weWidgets.Dialog.extend({
 });
 options.registry.facebookPage = options.Class.extend({
     /**
-     * Initializes the required facebook page data to create the animation
-     * iframe.
+     * Initializes the required facebook page data to create the iframe.
      *
      * @override
      */
@@ -741,7 +846,7 @@ options.registry.facebookPage = options.Class.extend({
             }));
         }
 
-        return $.when.apply($, defs);
+        return Promise.all(defs);
     },
     /**
      * @override
@@ -792,7 +897,7 @@ options.registry.facebookPage = options.Class.extend({
             $el.attr('data-' + key, value);
             $el.data(key, value);
         });
-        self._refreshAnimations($el);
+        self._refreshPublicWidgets($el);
     },
 });
 
@@ -814,8 +919,8 @@ options.registry.ul = options.Class.extend({
         this._super();
         if (!this.$target.hasClass('o_ul_folded')) {
             this.$target.find('.o_close').removeClass('o_close');
+            this.$target.find('li').css('list-style', '');
         }
-        this.$target.find('li:not(:has(>ul))').css('list-style', '');
     },
 
     //--------------------------------------------------------------------------
@@ -828,7 +933,7 @@ options.registry.ul = options.Class.extend({
     toggleClass: function () {
         this._super.apply(this, arguments);
 
-        this.trigger_up('animation_stop_demand', {
+        this.trigger_up('widgets_stop_request', {
             $target: this.$target,
         });
 
@@ -844,14 +949,12 @@ options.registry.ul = options.Class.extend({
         })
         .prepend('<a href="#" class="o_ul_toggle_self fa" />');
         var $li = this.$target.find('li:has(+li:not(>.o_ul_toggle_self)>ul, +li:not(>.o_ul_toggle_self)>ol)');
+        $li.css('list-style', this.$target.hasClass('o_ul_folded') ? 'none' : '');
         $li.map(function () { return $(this).children()[0] || this; })
             .prepend('<a href="#" class="o_ul_toggle_next fa" />');
         $li.removeClass('o_open').next().addClass('o_close');
-        this.$target.find('li').removeClass('o_open').css('list-style', '');
-        this.$target.find('li:has(.o_ul_toggle_self, .o_ul_toggle_next), li:has(>ul,>ol):not(:has(>li))').css('list-style', 'none');
-
-        this.$target.find('li:not(:has(>ul))').css('list-style', '');
-        this._refreshAnimations();
+        this.$target.find('li').removeClass('o_open');
+        this._refreshPublicWidgets();
     },
 });
 
@@ -943,7 +1046,7 @@ options.registry.gallery = options.Class.extend({
         var self = this;
 
         // The snippet should not be editable
-        this.$target.attr('contentEditable', false);
+        this.$target.addClass('o_fake_not_editable').attr('contentEditable', false);
 
         // Make sure image previews are updated if images are changed
         this.$target.on('save', 'img', function (ev) {
@@ -960,15 +1063,34 @@ options.registry.gallery = options.Class.extend({
             self.addImages(false);
         });
 
+        this.$target.on('dropped', 'img', function (ev) {
+            self.mode(null, self.getMode());
+            if (!ev.target.height) {
+                $(ev.target).one('load', function () {
+                    setTimeout(function () {
+                        self.trigger_up('cover_update');
+                    });
+                });
+            }
+        });
+
+        if (this.$('.container:first > *:not(div)').length) {
+            self.mode(null, self.getMode());
+        }
+
         return this._super.apply(this, arguments);
     },
     /**
      * @override
      */
     onBuilt: function () {
-        var uuid = new Date().getTime();
-        this.$target.find('.carousel').attr('id', 'slideshow_' + uuid);
-        this.$target.find('[data-target]').attr('data-target', '#slideshow_' + uuid);
+        this._adaptNavigationIDs();
+    },
+    /**
+     * @override
+     */
+    onClone: function () {
+        this._adaptNavigationIDs();
     },
     /**
      * @override
@@ -991,19 +1113,20 @@ options.registry.gallery = options.Class.extend({
     addImages: function (previewMode) {
         var self = this;
         var $container = this.$('.container:first');
-        var dialog = new weWidgets.MediaDialog(this, {multiImages: true}, this.$target.closest('.o_editable'), null);
+        var dialog = new weWidgets.MediaDialog(this, {multiImages: true, onlyImages: true, mediaWidth: 1920});
         var lastImage = _.last(this._getImages());
         var index = lastImage ? this._getIndex(lastImage) : -1;
         dialog.on('save', this, function (attachments) {
             for (var i = 0 ; i < attachments.length; i++) {
                 $('<img/>', {
                     class: 'img img-fluid',
-                    src: attachments[i].src,
+                    src: attachments[i].image_src,
                     'data-index': ++index,
                 }).appendTo($container);
             }
             self._reset();
             self.trigger_up('cover_update');
+            this._setActive();
         });
         dialog.open();
     },
@@ -1018,6 +1141,24 @@ options.registry.gallery = options.Class.extend({
 
         var $activeMode = this.$el.find('.active[data-mode]');
         this.mode(null, $activeMode.data('mode'), $activeMode);
+    },
+    /**
+     * Get the image target's layout mode (slideshow, masonry, grid or nomode).
+     *
+     * @returns {String('slideshow'|'masonry'|'grid'|'nomode')}
+     */
+    getMode: function () {
+        var mode = 'slideshow';
+        if (this.$target.hasClass('o_masonry')) {
+            mode = 'masonry';
+        }
+        if (this.$target.hasClass('o_grid')) {
+            mode = 'grid';
+        }
+        if (this.$target.hasClass('o_nomode')) {
+            mode = 'nomode';
+        }
+        return mode;
     },
     /**
      * Displays the images with the "grid" layout.
@@ -1090,10 +1231,11 @@ options.registry.gallery = options.Class.extend({
      */
     mode: function (previewMode, value, $opt) {
         this.$target.css('height', '');
-        this[value]();
         this.$target
             .removeClass('o_nomode o_masonry o_grid o_slideshow')
             .addClass('o_' + value);
+        this[value]();
+        this.trigger_up('cover_update');
     },
     /**
      * Displays the images with the standard layout: floating images.
@@ -1141,11 +1283,12 @@ options.registry.gallery = options.Class.extend({
         var urls = _.map(this._getImages(), function (img) {
             return $(img).attr('src');
         });
+        var currentInterval = this.$target.find('.carousel:first').attr('data-interval');
         var params = {
             srcs : urls,
             index: 0,
             title: "",
-            interval : this.$target.data('interval') || false,
+            interval : currentInterval || this.$target.data('interval') || 0,
             id: 'slideshow_' + new Date().getTime(),
             userStyle: imgStyle,
         },
@@ -1159,7 +1302,7 @@ options.registry.gallery = options.Class.extend({
         // Apply layout animation
         this.$target.off('slide.bs.carousel').off('slid.bs.carousel');
         this.$('li.fa').off('click');
-        this._refreshAnimations();
+        this._refreshPublicWidgets();
     },
     /**
      * Allows to change the style of the individual images.
@@ -1220,6 +1363,21 @@ options.registry.gallery = options.Class.extend({
     //--------------------------------------------------------------------------
 
     /**
+     * @private
+     */
+    _adaptNavigationIDs: function () {
+        var uuid = new Date().getTime();
+        this.$target.find('.carousel').attr('id', 'slideshow_' + uuid);
+        _.each(this.$target.find('[data-slide], [data-slide-to]'), function (el) {
+            var $el = $(el);
+            if ($el.attr('data-target')) {
+                $el.attr('data-target', '#slideshow_' + uuid);
+            } else if ($el.attr('href')) {
+                $el.attr('href', '#slideshow_' + uuid);
+            }
+        });
+    },
+    /**
      * Returns the images, sorted by index.
      *
      * @private
@@ -1268,35 +1426,56 @@ options.registry.gallery = options.Class.extend({
      * @override
      */
     _setActive: function () {
-        this._super();
-        var classes = _.uniq((this.$target.attr('class').replace(/(^|\s)o_/g, ' ') || '').split(/\s+/));
-        this.$el.find('[data-mode]')
-            .removeClass('active')
-            .filter('[data-mode="' + classes.join('"], [data-mode="') + '"]').addClass('active');
-        var mode = this.$el.find('[data-mode].active').data('mode');
+        this._super(...arguments);
 
-        classes = _.uniq((this.$('img:first').attr('class') || '').split(/\s+/));
-        this.$el.find('[data-styling]')
+        var activeModeSelectors = [];
+        for (const className of this.$target[0].classList) {
+            if (className.startsWith('o_')) {
+                activeModeSelectors.push('[data-mode="' + className.substring(2) + '"]');
+            }
+        }
+        var activeMode = this.$el.find('[data-mode]')
             .removeClass('active')
-            .filter('[data-styling="' + classes.join('"], [data-styling="') + '"]').addClass('active');
+            .filter(activeModeSelectors.join(', '))
+            .addClass('active')
+            .data('mode');
 
-        this.$el.find('[data-interval]').removeClass('active')
-            .filter('[data-interval='+this.$target.find('.carousel:first').attr('data-interval')+']')
+        var carousel = this.$target[0].querySelector('.carousel');
+        var activeInterval = carousel ? (carousel.dataset.interval || 0) : undefined;
+        var $intervalOptions = this.$el.find('[data-interval]');
+        $intervalOptions.removeClass('active')
+            .filter('[data-interval="' + activeInterval + '"]')
             .addClass('active');
-
-        var interval = this.$target.find('.carousel:first').attr('data-interval');
-        this.$el.find('[data-interval]')
-            .removeClass('active')
-            .filter('[data-interval=' + interval + ']').addClass('active');
+        $intervalOptions.closest('we-collapse-area')[0]
+            .classList.toggle('d-none', activeMode !== 'slideshow');
 
         var columns = this._getColumns();
-        this.$el.find('[data-columns]')
-            .removeClass('active')
-            .filter('[data-columns=' + columns + ']').addClass('active');
+        var $columnOptions = this.$el.find('[data-columns]');
+        $columnOptions.removeClass('active')
+            .filter('[data-columns="' + columns + '"]')
+            .addClass('active');
+        $columnOptions.closest('we-collapse-area')[0]
+            .classList.toggle('d-none', !(activeMode === 'grid' || activeMode === 'masonry'));
 
-        this.$el.find('[data-columns]:first, [data-select-class="spc-none"]')
-            .parent().parent().toggle(['grid', 'masonry'].indexOf(mode) !== -1);
-        this.$el.find('[data-interval]:first').parent().parent().toggle(mode === 'slideshow');
+        this.el.querySelector('.o_w_image_spacing_option')
+            .classList.toggle('d-none', activeMode === 'slideshow');
+
+        var $stylingOptions = this.$el.find('[data-styling]');
+        $stylingOptions.removeClass('active');
+        var img = this.$target[0].querySelector('img');
+        var activeStyleSelectors = [];
+        if (img) {
+            for (const className of img.classList) {
+                activeStyleSelectors.push('[data-styling="' + className + '"]');
+            }
+        }
+        var $toEnable = activeStyleSelectors.length
+            ? $stylingOptions.filter(activeStyleSelectors.join(', '))
+            : null;
+        if (!$toEnable || !$toEnable.length) {
+            $toEnable = $stylingOptions.first();
+        }
+        $toEnable.addClass('active');
     },
 });
 
@@ -1373,15 +1552,13 @@ options.registry.topMenuTransparency = options.Class.extend({
     _setActive: function () {
         this._super.apply(this, arguments);
 
-        var enabled;
         this.trigger_up('action_demand', {
             actionName: 'get_page_option',
             params: ['header_overlay'],
-            onSuccess: function (value) {
-                enabled = value;
+            onSuccess: value => {
+                this.$el.find('[data-transparent]').toggleClass('active', !!value);
             },
         });
-        this.$el.find('[data-transparent]').addBack('[data-transparent]').toggleClass('active', !!enabled);
     },
 });
 
@@ -1401,15 +1578,16 @@ options.registry.topMenuColor = options.registry.colorpicker.extend({
      * @override
      */
     onFocus: function () {
-        var enabled;
         this.trigger_up('action_demand', {
             actionName: 'get_page_option',
             params: ['header_overlay'],
-            onSuccess: function (value) {
-                enabled = value;
+            onSuccess: value => {
+                this.$el.toggleClass('d-none', !value);
+                if (!value) {
+                    this.$el.find('button.selected').removeClass('selected');
+                }
             },
         });
-        this.$el.toggleClass('d-none', !enabled);
     },
 
     //--------------------------------------------------------------------------
@@ -1428,6 +1606,246 @@ options.registry.topMenuColor = options.registry.colorpicker.extend({
             actionName: 'toggle_page_option',
             params: [{name: 'header_color', value: color}],
         });
+    },
+    /**
+     * @override
+     */
+    _onColorResetButtonClick: function () {
+        this._super.apply(this, arguments);
+        this.trigger_up('action_demand', {
+            actionName: 'toggle_page_option',
+            params: [{name: 'header_color', value: ''}],
+        });
+    },
+});
+
+/**
+ * Handles the edition of snippet's anchor name.
+ */
+options.registry.anchorName = options.Class.extend({
+    xmlDependencies: ['/website/static/src/xml/website.editor.xml'],
+
+    //--------------------------------------------------------------------------
+    // Public
+    //--------------------------------------------------------------------------
+
+    /**
+     * @override
+     */
+    onClone: function () {
+        this.$target.removeAttr('data-anchor');
+        this.$target.filter(':not(.carousel)').removeAttr('id');
+    },
+
+    //--------------------------------------------------------------------------
+    // Options
+    //--------------------------------------------------------------------------
+
+    /**
+     * @see this.selectClass for parameters
+     */
+    openAnchorDialog: function (previewMode, value, $opt) {
+        var self = this;
+        var buttons = [{
+            text: _t("Save"),
+            classes: 'btn-primary',
+            click: function () {
+                var $input = this.$('.o_input_anchor_name');
+                var anchorName = $input.val().trim().replace(/\s/g, '_');
+                if (self.$target[0].id === anchorName) {
+                    // If the chosen anchor name is already the one used by the
+                    // element, close the dialog and do nothing else
+                    this.close();
+                    return;
+                }
+
+                var isValid = /^[\w-]+$/.test(anchorName);
+                var alreadyExists = isValid && $('#' + anchorName).length > 0;
+                var anchorOK = isValid && !alreadyExists;
+                this.$('.o_anchor_not_valid').toggleClass('d-none', isValid);
+                this.$('.o_anchor_already_exists').toggleClass('d-none', !alreadyExists);
+                $input.toggleClass('is-invalid', !anchorOK);
+                if (anchorOK) {
+                    self._setAnchorName(anchorName);
+                    this.close();
+                }
+            },
+        }, {
+            text: _t("Discard"),
+            close: true,
+        }];
+        if (this.$target.attr('id')) {
+            buttons.push({
+                text: _t("Remove"),
+                classes: 'btn-link ml-auto',
+                icon: 'fa-trash',
+                close: true,
+                click: function () {
+                    self._setAnchorName();
+                },
+            });
+        }
+        new Dialog(this, {
+            title: _t("Link Anchor"),
+            $content: $(qweb.render('website.dialog.anchorName', {
+                currentAnchor: this.$target.attr('id'),
+            })),
+            buttons: buttons,
+        }).open();
+    },
+
+    //--------------------------------------------------------------------------
+    // Private
+    //--------------------------------------------------------------------------
+
+    /**
+     * @private
+     * @param {String} value
+     */
+    _setAnchorName: function (value) {
+        if (value) {
+            this.$target.attr({
+                'id': value,
+                'data-anchor': true,
+            });
+        } else {
+            this.$target.removeAttr('id data-anchor');
+        }
+        this.$target.trigger('content_changed');
+    },
+});
+
+/**
+ * Allows edition of 'cover_properties' in website models which have such
+ * fields (blogs, posts, events, ...).
+ */
+options.registry.CoverProperties = options.Class.extend({
+    /**
+     * @constructor
+     */
+    init: function () {
+        this._super.apply(this, arguments);
+
+        this.$image = this.$target.find('.o_record_cover_image');
+        this.$filter = this.$target.find('.o_record_cover_filter');
+    },
+    /**
+     * @override
+     */
+    start: function () {
+        this.$filterValueOpts = this.$el.find('[data-filter-value]');
+        this.$filterColorOpts = this.$el.find('[data-filter-color]');
+        this.filterColorClasses = this.$filterColorOpts.map(function () {
+            return $(this).data('filterColor');
+        }).get().join(' ');
+
+        return this._super.apply(this, arguments);
+    },
+
+    //--------------------------------------------------------------------------
+    // Options
+    //--------------------------------------------------------------------------
+
+    /**
+     * @see this.selectClass for parameters
+     */
+    clear: function (previewMode, value, $opt) {
+        this.selectClass(previewMode, '', $());
+        this.$image.css('background-image', '');
+    },
+    /**
+     * @see this.selectClass for parameters
+     */
+    change: function (previewMode, value, $opt) {
+        var $image = $('<img/>');
+        var background = this.$image.css('background-image');
+        if (background && background !== 'none') {
+            $image.attr('src', background.match(/^url\(["']?(.+?)["']?\)$/)[1]);
+        }
+
+        var editor = new weWidgets.MediaDialog(this, {
+            mediaWidth: 1920,
+            onlyImages: true,
+        }, $image[0]).open();
+        editor.on('save', this, function (image) {
+            var src = image.src;
+            this.$image.css('background-image', src ? ('url(' + src + ')') : '');
+            if (!this.$target.hasClass('o_record_has_cover')) {
+                var $opt = this.$el.find('.o_record_cover_opt_size_default[data-select-class]');
+                this.selectClass(previewMode, $opt.data('selectClass'), $opt);
+            }
+            this._setActive();
+        });
+    },
+    /**
+     * @see this.selectClass for parameters
+     */
+    filterValue: function (previewMode, value, $opt) {
+        this.$filter.css('opacity', value);
+    },
+    /**
+     * @see this.selectClass for parameters
+     */
+    filterColor: function (previewMode, value, $opt) {
+        this.$filter.removeClass(this.filterColorClasses);
+        if (value) {
+            this.$filter.addClass(value);
+        }
+
+        var $firstVisibleFilterOpt = this.$filterValueOpts.eq(1);
+        if (parseFloat(this.$filter.css('opacity')) < parseFloat($firstVisibleFilterOpt.data('filterValue'))) {
+            this.filterValue(previewMode, $firstVisibleFilterOpt.data('filterValue'), $firstVisibleFilterOpt);
+        }
+    },
+
+    //--------------------------------------------------------------------------
+    // Private
+    //--------------------------------------------------------------------------
+
+    /**
+     * @private
+     * @override
+     */
+    _setActive: function () {
+        this._super.apply(this, arguments);
+
+        _.each(this.$el.children(), el => {
+            var $el = $(el);
+
+            if (!$el.is('[data-change]')) {
+                $el.removeClass('d-none');
+
+                ['size', 'filters', 'text_size', 'text_align'].forEach(optName => {
+                    var $opts = $el.find('[data-cover-opt="' + optName + '"]');
+                    var notAllowed = (this.$target.data('use_' + optName) !== 'True');
+
+                    if ($opts.length && (!this.$target.hasClass('o_record_has_cover') || notAllowed)) {
+                        $el.addClass('d-none');
+                    }
+                });
+            }
+        });
+
+        this.$el.find('[data-clear]').toggleClass('d-none', !this.$target.hasClass('o_record_has_cover'));
+
+        this.$filterValueOpts.removeClass('active');
+        this.$filterColorOpts.removeClass('active');
+
+        var activeFilterValue = this.$filterValueOpts
+            .filter((i, el) => {
+                return (parseFloat($(el).data('filterValue')).toFixed(1) === parseFloat(this.$filter.css('opacity')).toFixed(1));
+            }).addClass('active').data('filterValue');
+
+        var activeFilterColor = this.$filterColorOpts
+            .filter((i, el) => {
+                return this.$filter.hasClass($(el).data('filterColor'));
+            }).addClass('active').data('filterColor');
+
+        this.$target[0].dataset.coverClass = this.$el.find('.active[data-cover-opt="size"]').data('selectClass') || '';
+        this.$target[0].dataset.textSizeClass = this.$el.find('.active[data-cover-opt="text_size"]').data('selectClass') || '';
+        this.$target[0].dataset.textAlignClass = this.$el.find('.active[data-cover-opt="text_align"]').data('selectClass') || '';
+        this.$target[0].dataset.filterValue = activeFilterValue || 0.0;
+        this.$target[0].dataset.filterColor = activeFilterColor || '';
     },
 });
 });

@@ -1,19 +1,20 @@
 # Translation of Odoo Server.
 # This file contains the translation of the following modules:
-# * website_mail_channel
+# 	* website_mail_channel
 # 
 # Translators:
-# Yaroslav Molochko <onorua@gmail.com>, 2018
-# Martin Trigaux, 2018
-# ТАрас <tratatuta@i.ua>, 2018
+# Yaroslav Molochko <onorua@gmail.com>, 2019
+# Martin Trigaux, 2019
+# Bohdan Lisnenko, 2019
+# ТАрас <tratatuta@i.ua>, 2019
 # Alina Lisnenko <alinasemeniuk1@gmail.com>, 2019
 # 
 msgid ""
 msgstr ""
-"Project-Id-Version: Odoo Server 12.0\n"
+"Project-Id-Version: Odoo Server saas~12.4\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2019-01-09 10:32+0000\n"
-"PO-Revision-Date: 2018-08-24 09:34+0000\n"
+"POT-Creation-Date: 2019-08-12 11:32+0000\n"
+"PO-Revision-Date: 2019-08-26 09:16+0000\n"
 "Last-Translator: Alina Lisnenko <alinasemeniuk1@gmail.com>, 2019\n"
 "Language-Team: Ukrainian (https://www.transifex.com/odoo/teams/41243/uk/)\n"
 "MIME-Version: 1.0\n"
@@ -123,7 +124,7 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:website_mail_channel.mail_channels
 #: model_terms:ir.ui.view,arch_db:website_mail_channel.subscribe
 msgid "<i class=\"fa fa-times\"/> unsubscribe"
-msgstr "<i class=\"fa fa-times\"/> видалити підписку"
+msgstr "<i class=\"fa fa-times\"/> відписатися"
 
 #. module: website_mail_channel
 #: model_terms:ir.ui.view,arch_db:website_mail_channel.subscribe
@@ -242,7 +243,7 @@ msgstr ""
 "                        <br/><br/>\n"
 "                        Для підтвердження перейдіть за посиланням: <strong><a href=\"${ctx['token_url']}\">${ctx['token_url']}</a></strong>\n"
 "                        <br/><br/>\n"
-"                        Якщо це було помилка або ви не подавали запит на цю дію, проігноруйте це повідомлення.\n"
+"                        Якщо це помилка або ви не подавали запит на цю дію, проігноруйте це повідомлення.\n"
 "                        % if user.signature\n"
 "                        <br/>\n"
 "                        ${user.signature | safe}\n"
@@ -403,7 +404,7 @@ msgstr ""
 "                        <br/><br/>\n"
 "                        Для підтвердження перейдіть за посиланням: <strong><a href=\"${ctx['token_url']}\">${ctx['token_url']}</a></strong>.\n"
 "                        <br/><br/>\n"
-"                       Якщо це було помилка або ви не подавали запит на цю дію, проігноруйте це повідомлення.\n"
+"                       Якщо це помилка або ви не подавали запит на цю дію, проігноруйте це повідомлення.\n"
 "                        % if user.signature:\n"
 "                        <br/>\n"
 "                        ${user.signature | safe}\n"
@@ -454,10 +455,10 @@ msgstr ""
 
 #. module: website_mail_channel
 #. openerp-web
-#: code:addons/website_mail_channel/static/src/js/website_mail_channel.editor.js:17
+#: code:addons/website_mail_channel/static/src/js/website_mail_channel.editor.js:15
 #, python-format
 msgid "Add a Subscribe Button"
-msgstr "Додати кнопку підписки"
+msgstr "Додати кнопку Підписатись"
 
 #. module: website_mail_channel
 #: model_terms:ir.ui.view,arch_db:website_mail_channel.mail_channels
@@ -467,7 +468,7 @@ msgstr "Одні ми можемо зробити так мало, разом м
 #. module: website_mail_channel
 #: model_terms:ir.ui.view,arch_db:website_mail_channel.group_messages
 msgid "Archives"
-msgstr "Архіви"
+msgstr "Архів"
 
 #. module: website_mail_channel
 #: model_terms:ir.ui.view,arch_db:website_mail_channel.group_message
@@ -508,16 +509,16 @@ msgid "Confirm unsubscription to ${object.name}"
 msgstr "Підтвердити скасування підписки на ${object.name}"
 
 #. module: website_mail_channel
-#. openerp-web
-#: code:addons/website_mail_channel/static/src/js/website_mail_channel.editor.js:18
-#, python-format
-msgid "Discussion List"
-msgstr "Список обговорень"
-
-#. module: website_mail_channel
 #: model:ir.model,name:website_mail_channel.model_mail_channel
 msgid "Discussion Channel"
 msgstr "Канал обговорення"
+
+#. module: website_mail_channel
+#. openerp-web
+#: code:addons/website_mail_channel/static/src/js/website_mail_channel.editor.js:16
+#, python-format
+msgid "Discussion List"
+msgstr "Список обговорень"
 
 #. module: website_mail_channel
 #: model_terms:ir.ui.view,arch_db:website_mail_channel.group_message
@@ -565,12 +566,12 @@ msgstr "Вихідна пошта"
 #: code:addons/website_mail_channel/models/mail_mail.py:21
 #, python-format
 msgid "Post to"
-msgstr "Опублікувати до"
+msgstr "Опублікувати на"
 
 #. module: website_mail_channel
 #: model_terms:ir.ui.view,arch_db:website_mail_channel.group_message
 msgid "Reference"
-msgstr "Референс"
+msgstr "Посилання"
 
 #. module: website_mail_channel
 #: model_terms:ir.ui.view,arch_db:website_mail_channel.mail_channels
@@ -618,7 +619,7 @@ msgstr "було надіслано підтвердження електрон�
 #. module: website_mail_channel
 #: model_terms:ir.ui.view,arch_db:website_mail_channel.group_message
 msgid "attachments"
-msgstr "вкладення"
+msgstr "прикріплення"
 
 #. module: website_mail_channel
 #: model_terms:ir.ui.view,arch_db:website_mail_channel.group_message

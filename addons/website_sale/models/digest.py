@@ -17,10 +17,10 @@ class Digest(models.Model):
         for record in self:
             start, end, company = record._get_kpi_compute_parameters()
             confirmed_website_sales = self.env['sale.order'].search([
-                ('confirmation_date', '>=', start),
-                ('confirmation_date', '<', end),
+                ('date_order', '>=', start),
+                ('date_order', '<', end),
                 ('state', 'not in', ['draft', 'cancel', 'sent']),
-                ('team_id.team_type', '=', 'website'),
+                ('website_id', '!=', False),
                 ('company_id', '=', company.id)
             ])
             record.kpi_website_sale_total_value = sum(confirmed_website_sales.mapped('amount_total'))

@@ -8,7 +8,8 @@ var models = require('point_of_sale.models');
 var AbstractAction = require('web.AbstractAction');
 var core = require('web.core');
 var ajax = require('web.ajax');
-var CrashManager = require('web.CrashManager');
+var CrashManager = require('web.CrashManager').CrashManager;
+var rpc = require('web.rpc');
 var BarcodeEvents = require('barcodes.BarcodeEvents').BarcodeEvents;
 
 
@@ -80,33 +81,13 @@ var OrderSelectorWidget = PosBaseWidget.extend({
 
 /* ------- The User Name Widget ------- */
 
-// Displays the current cashier's name and allows
-// to switch between cashiers.
+// Displays the current cashier's name
 
 var UsernameWidget = PosBaseWidget.extend({
     template: 'UsernameWidget',
     init: function(parent, options){
         options = options || {};
         this._super(parent,options);
-    },
-    renderElement: function(){
-        var self = this;
-        this._super();
-
-        this.$el.click(function(){
-            self.click_username();
-        });
-    },
-    click_username: function(){
-        var self = this;
-        this.gui.select_user({
-            'security':     true,
-            'current_user': this.pos.get_cashier(),
-            'title':      _t('Change Cashier'),
-        }).then(function(user){
-            self.pos.set_cashier(user);
-            self.renderElement();
-        });
     },
     get_name: function(){
         var user = this.pos.get_cashier();
@@ -130,7 +111,9 @@ var HeaderButtonWidget = PosBaseWidget.extend({
         options = options || {};
         this._super(parent, options);
         this.action = options.action;
-        this.label   = options.label;
+        this.label  = options.label;
+        this.button_class = options.button_class;
+
     },
     renderElement: function(){
         var self = this;
@@ -141,8 +124,8 @@ var HeaderButtonWidget = PosBaseWidget.extend({
             });
         }
     },
-    show: function(){ this.$el.removeClass('oe_hidden'); },
-    hide: function(){ this.$el.addClass('oe_hidden'); },
+    show: function() { this.$el.removeClass('oe_hidden'); },
+    hide: function() { this.$el.addClass('oe_hidden'); },
 });
 
 /* --------- The Debug Widget --------- */
@@ -265,7 +248,7 @@ var DebugWidget = PosBaseWidget.extend({
                 'body':  _t('This operation will permanently destroy all paid orders from the local storage. You will lose all the data. This operation cannot be undone.'),
                 confirm: function(){
                     self.pos.db.remove_all_orders();
-                    self.pos.set({synch: { state:'connected', pending: 0 }});
+                    self.pos.set_synch('connected', 0);
                 },
             });
         });
@@ -384,8 +367,8 @@ var ProxyStatusWidget = StatusWidget.extend({
             }
             if( this.pos.config.iface_print_via_proxy || 
                 this.pos.config.iface_cashdrawer ){
-                var printer = status.drivers.escpos ? status.drivers.escpos.status : false;
-                if( printer != 'connected' && printer != 'connecting'){
+                var printer = status.drivers.printer ? status.drivers.printer.status : false;
+                if (printer != 'connected' && printer != 'connecting') {
                     warning = true;
                     msg = msg ? msg + ' & ' : msg;
                     msg += _t('Printer');
@@ -403,7 +386,7 @@ var ProxyStatusWidget = StatusWidget.extend({
             msg = msg ? msg + ' ' + _t('Offline') : msg;
             this.set_status(warning ? 'warning' : 'connected', msg);
         }else{
-            this.set_status(status.status,'');
+            this.set_status(status.status, status.msg || '');
         }
     },
     start: function(){
@@ -424,15 +407,44 @@ var ProxyStatusWidget = StatusWidget.extend({
 
 /* --------- The Sale Details --------- */
 
-// Generates a report to print the sales of the
-// day on a ticket
-
+/** Print an overview of todays sales.
+ *
+ * If the current cashier is a manager all sales of the day will be printed, else only the sales of the current
+ * session will be printed.
+ */
 var SaleDetailsButton = PosBaseWidget.extend({
     template: 'SaleDetailsButton',
     start: function(){
         var self = this;
         this.$el.click(function(){
-            self.pos.proxy.print_sale_details();
+            self.print_sale_details();
+        });
+    },
+
+    /** Print an overview of todays sales.
+     *
+     * By default this will print all sales of the day for current PoS config.
+     */
+    print_sale_details: function () {
+        var self = this;
+        rpc.query({
+            model: 'report.point_of_sale.report_saledetails',
+            method: 'get_sale_details',
+            args: [false, false, false, [this.pos.pos_session.id]],
+        })
+        .then(function(result){
+            var env = {
+                widget: new PosBaseWidget(self),
+                company: self.pos.company,
+                pos: self.pos,
+                products: result.products,
+                payments: result.payments,
+                taxes: result.taxes,
+                total_paid: result.total_paid,
+                date: (new Date()).toLocaleString(),
+            };
+            var report = QWeb.render('SaleDetailsReport', env);
+            self.pos.proxy.printer.print_receipt(report);
         });
     },
 });
@@ -471,34 +483,33 @@ var ClientScreenWidget = PosBaseWidget.extend({
         var self = this;
         function loop() {
             if (self.pos.proxy.posbox_supports_display) {
-                var deffered = self.pos.proxy.test_ownership_of_client_screen();
-                if (deffered) {
-                    deffered.then(
-                        function(data) {
-                            if (typeof data === 'string') {
-                                data = JSON.parse(data);
-                            }
-                            if (data.status === 'OWNER') {
-                                self.change_status_display('success');
-                            } else {
-                                self.change_status_display('warning');
-                              }
-                        },
-                        
-                        function(err) {
-                            if (typeof err == "undefined") {
-                                self.change_status_display('failure');
-                            } else {
-                                self.change_status_display('not_found');
-                                self.pos.proxy.posbox_supports_display = false;
-                            }
-                        })
-    
-                    .always(function () {
-                        setTimeout(loop,3000);
-                    });
-                }
-            }   
+                self.pos.proxy.test_ownership_of_client_screen().then(
+                    function (data) {
+                        if (typeof data === 'string') {
+                            data = JSON.parse(data);
+                        }
+                        if (data.status === 'OWNER') {
+                            self.change_status_display('success');
+                        } else {
+                            self.change_status_display('warning');
+                        }
+                        setTimeout(loop, 3000);
+                    },
+                    function (err) {
+                        if (err.abort) {
+                            // Stop the loop
+                            return;
+                        }
+                        if (typeof err == "undefined") {
+                            self.change_status_display('failure');
+                        } else {
+                            self.change_status_display('not_found');
+                            self.pos.proxy.posbox_supports_display = false;
+                        }
+                        setTimeout(loop, 3000);
+                    }
+                );
+            }
         }
         loop();
     },
@@ -510,7 +521,6 @@ var ClientScreenWidget = PosBaseWidget.extend({
                 this.$el.click(function(){
                     self.pos.render_html_for_customer_facing_display().then(function(rendered_html) {
                         self.pos.proxy.take_ownership_over_client_screen(rendered_html).then(
-       
                         function(data) {
                             if (typeof data === 'string') {
                                 data = JSON.parse(data);
@@ -582,13 +592,12 @@ var Chrome = PosBaseWidget.extend(AbstractAction.prototype, {
         this.logo_click_time  = 0;
         this.logo_click_count = 0;
 
-            this.previous_touch_y_coordinate = -1;
+        this.previous_touch_y_coordinate = -1;
 
         this.widget = {};   // contains references to subwidgets instances
 
         this.cleanup_dom();
-
-        this.pos.ready.done(function(){
+        this.pos.ready.then(function(){
             self.build_chrome();
             self.build_widgets();
             self.disable_rubberbanding();
@@ -597,7 +606,7 @@ var Chrome = PosBaseWidget.extend(AbstractAction.prototype, {
             self.loading_hide();
             self.replace_crashmanager();
             self.pos.push_order();
-        }).fail(function(err){   // error when loading models data from the backend
+        }).guardedCatch(function (err) { // error when loading models data from the backend
             self.loading_error(err);
         });
     },
@@ -801,7 +810,7 @@ var Chrome = PosBaseWidget.extend(AbstractAction.prototype, {
             'name':   'sale_details',
             'widget': SaleDetailsButton,
             'append':  '.pos-rightheader',
-            'condition': function(){ return this.pos.config.use_proxy; },
+            'condition': function(){ return this.pos.proxy.printer; },
         },{
             'name':   'proxy_status',
             'widget': ProxyStatusWidget,
@@ -821,8 +830,9 @@ var Chrome = PosBaseWidget.extend(AbstractAction.prototype, {
             'widget': HeaderButtonWidget,
             'append':  '.pos-rightheader',
             'args': {
-                label: _lt('Close'),
+                label: _t('Close'),
                 action: function(){ 
+                    this.$el.addClass('close_button');
                     var self = this;
                     if (!this.confirmed) {
                         this.$el.addClass('confirm');
@@ -853,30 +863,34 @@ var Chrome = PosBaseWidget.extend(AbstractAction.prototype, {
         },
     ],
 
-    // This method instantiates all the screens, widgets, etc. 
-    build_widgets: function() {
-        var classe;
-
-        for (var i = 0; i < this.widgets.length; i++) {
-            var def = this.widgets[i];
-            if ( !def.condition || def.condition.call(this) ) {
-                var args = typeof def.args === 'function' ? def.args(this) : def.args;
-                var w = new def.widget(this, args || {});
-                if (def.replace) {
-                    w.replace(this.$(def.replace));
-                } else if (def.append) {
-                    w.appendTo(this.$(def.append));
-                } else if (def.prepend) {
-                    w.prependTo(this.$(def.prepend));
+    load_widgets: function(widgets) {
+        for (var i = 0; i < widgets.length; i++) {
+            var widget = widgets[i];
+            if ( !widget.condition || widget.condition.call(this) ) {
+                var args = typeof widget.args === 'function' ? widget.args(this) : widget.args;
+                var w = new widget.widget(this, args || {});
+                if (widget.replace) {
+                    w.replace(this.$(widget.replace));
+                } else if (widget.append) {
+                    w.appendTo(this.$(widget.append));
+                } else if (widget.prepend) {
+                    w.prependTo(this.$(widget.prepend));
                 } else {
                     w.appendTo(this.$el);
                 }
-                this.widget[def.name] = w;
+                this.widget[widget.name] = w;
             }
         }
+    },
+
+    // This method instantiates all the screens, widgets, etc.
+    build_widgets: function() {
+        var self = this;
+        this.load_widgets(this.widgets);
 
         this.screens = {};
-        for (i = 0; i < this.gui.screen_classes.length; i++) {
+        var classe;
+        for (var i = 0; i < this.gui.screen_classes.length; i++) {
             classe = this.gui.screen_classes[i];
             if (!classe.condition || classe.condition.call(this)) {
                 var screen = new classe.widget(this,{});
@@ -887,15 +901,15 @@ var Chrome = PosBaseWidget.extend(AbstractAction.prototype, {
         }
 
         this.popups = {};
-        for (i = 0; i < this.gui.popup_classes.length; i++) {
-            classe = this.gui.popup_classes[i];
-            if (!classe.condition || classe.condition.call(this)) {
-                var popup = new classe.widget(this,{});
-                    popup.appendTo(this.$('.popups'));
-                this.popups[classe.name] = popup;
-                this.gui.add_popup(classe.name, popup);
+        _.forEach(this.gui.popup_classes, function (classe) {
+            if (!classe.condition || classe.condition.call(self)) {
+                var popup = new classe.widget(self,{});
+                popup.appendTo(self.$('.popups')).then(function () {
+                    self.popups[classe.name] = popup;
+                    self.gui.add_popup(classe.name, popup);
+                });
             }
-        }
+        });
 
         this.gui.set_startup_screen('products');
         this.gui.set_default_screen('products');

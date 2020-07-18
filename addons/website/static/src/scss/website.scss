@@ -4,19 +4,62 @@
 
 $-seen: ();
 $-font-numbers: (
-    $o-theme-font-number,
-    $o-theme-headings-font-number,
-    $o-theme-buttons-font-number,
-    $o-theme-navbar-font-number
+    o-website-value('font-number'),
+    o-website-value('headings-font-number'),
+    o-website-value('navbar-font-number'),
+    o-website-value('buttons-font-number'),
 );
 @each $-number in $-font-numbers {
     @if index($-seen, $-number) == null {
         $-seen: append($-seen, $-number);
         $-theme-font: nth($o-theme-font-urls, $-number);
         @if $-theme-font {
-            @import url("https://fonts.googleapis.com/css?family=#{unquote($-theme-font)}");
+            @import url("https://fonts.googleapis.com/css?family=#{unquote($-theme-font)}&display=swap");
         }
     }
+}
+
+:root {
+    // The theme customize modal JS will need to know the value of some scss
+    // variables used to render the user website, and those may have been
+    // customized by themes, the user or anything else (so there is no file to
+    // parse to get them). Those will be printed here as CSS variables.
+
+    // 0) does this theme enforce primary = alpha or secondary = beta
+    --is-alpha-primary: #{$-is-alpha-primary};
+    --is-beta-secondary: #{$-is-beta-secondary};
+
+    // 1) Handle default values
+    --header-font-size: #{$font-size-base};
+
+    // 2) The values in the $theme-colors map are already printed by Bootstrap.
+
+    // 3) The values in the $colors map are also printed by Bootstrap.
+
+    // 4) The Odoo values map, $o-website-values, must be printed.
+    @each $key, $value in o-map-omit($o-website-values) {
+        --#{$key}: #{$value};
+    }
+
+    // 5) Use final value used by the theme
+    $-h1-color: if($headings-color == inherit or not $headings-color, $body-color, $headings-color);
+    $-h2-color: if(color('h2'), color('h2'), $-h1-color);
+    $-h3-color: if(color('h3'), color('h3'), $-h2-color);
+    $-h4-color: if(color('h4'), color('h4'), $-h3-color);
+    $-h5-color: if(color('h5'), color('h5'), $-h4-color);
+    $-h6-color: if(color('h6'), color('h6'), $-h5-color);
+
+    --body: #{$body-bg};
+    --text: #{$body-color};
+    --h1: #{$-h1-color};
+    --h2: #{$-h2-color};
+    --h3: #{$-h3-color};
+    --h4: #{$-h4-color};
+    --h5: #{$-h5-color};
+    --h6: #{$-h6-color};
+
+    --logo-height: #{$o-theme-navbar-logo-height};
+    --number-of-fonts: #{length($o-theme-fonts)};
 }
 
 #wrapwrap {
@@ -37,8 +80,8 @@ $-font-numbers: (
 }
 
 .navbar {
-    @if ($o-theme-navbar-font-number != $o-theme-font-number) {
-        font-family: nth($o-theme-fonts, $o-theme-navbar-font-number);
+    @if ($o-theme-navbar-font != $o-theme-font) {
+        font-family: $o-theme-navbar-font;
     }
 
     .nav-item {
@@ -60,6 +103,31 @@ $-font-numbers: (
         background-color: color('menu') !important;
         @if (color-yiq(color('menu')) != $yiq-text-dark) {
             @extend .navbar-dark;
+        }
+    }
+}
+
+$-header-nav-link-height: $nav-link-height;
+@if o-website-value('header-font-size') {
+    $-header-nav-link-height: o-website-value('header-font-size') * $line-height-base + $nav-link-padding-y * 2;
+    header {
+        font-size: o-website-value('header-font-size');
+
+        .dropdown-menu {
+            font-size: inherit;
+        }
+    }
+}
+@if $o-theme-navbar-logo-height {
+    // With default values, this makes it slightly bigger than standard
+    // navbar-brand, which is what we want
+    header .navbar-brand {
+        font-size: $o-theme-navbar-logo-height / $line-height-base;
+
+        $-logo-padding-y: max(0, $-header-nav-link-height - $o-theme-navbar-logo-height) / 2;
+        &, &.logo {
+            padding-top: $-logo-padding-y;
+            padding-bottom: $-logo-padding-y;
         }
     }
 }
@@ -91,8 +159,8 @@ h6 {
     color: color('h6');
 }
 .btn {
-    @if ($o-theme-buttons-font-number != $o-theme-font-number) {
-        font-family: nth($o-theme-fonts, $o-theme-buttons-font-number);
+    @if ($o-theme-buttons-font != $o-theme-font) {
+        font-family: $o-theme-buttons-font;
     }
 }
 
@@ -104,6 +172,7 @@ font[class*='bg-'] {
 
 // Icons
 .fa {
+    font-family: "FontAwesome" !important;
     $size: 3rem;
 
     &.rounded-circle,
@@ -192,10 +261,29 @@ font[class*='bg-'] {
     }
 }
 
+// Background videos
+.o_background_video {
+    position: relative;
+
+    > * {
+        position: relative;
+    }
+}
+.o_bg_video_container {
+    @include o-position-absolute(0, 0 ,0 ,0);
+    overflow: hidden;
+}
+.o_bg_video_iframe {
+    position: relative;
+    pointer-events: none !important;
+}
+.o_bg_video_loading {
+    @include o-position-absolute(0, 0 ,0 ,0);
+}
+
 // Probably outdated
 // Lists
-.o_ul_toggle_self,
-.o_ul_toggle_next {
+.o_ul_toggle {
     display: none;
 }
 
@@ -278,9 +366,11 @@ table.table_desc tr td {
 // Title
 .s_title {
     .s_title_boxed {
-        display: inline-block;
-        padding: $grid-gutter-width;
-        border: 1px solid;
+        > * {
+            display: inline-block;
+            padding: $grid-gutter-width;
+            border: 1px solid;
+        }
     }
     .s_title_lines {
         overflow: hidden;
@@ -392,8 +482,6 @@ table.table_desc tr td {
 // FAQ
 .s_faq_collapse {
     .accordion .card {
-        border-bottom: 1px solid rgba(0, 0, 0, 0.125);
-        margin: 5px 0;
         .card-header {
             cursor: pointer;
             display: inline-block;
@@ -473,8 +561,8 @@ table.table_desc tr td {
     // Default
     &.s_carousel_default {
         // Controls - chevron
-        .carousel-control-prev-icon:before { content: "\f053"; margin-left: 1.5rem; }
-        .carousel-control-next-icon:before { content: "\f054"; margin-right: 1.5rem; }
+        .carousel-control-prev-icon:before { content: "\f053" #{"/*rtl:'\f054'*/"}; margin-left: 1.5rem; }
+        .carousel-control-next-icon:before { content: "\f054" #{"/*rtl:'\f053'*/"}; margin-right: 1.5rem; }
         .carousel-control-prev-icon:before,
         .carousel-control-next-icon:before {
             background-color: rgba(0,0,0,0);
@@ -778,10 +866,15 @@ table.table_desc tr td {
     &.o_slideshow {
         .carousel {
             height: 100%;
+
             .carousel-inner {
                 height: 100%;
             }
-            .carousel-item {
+            .carousel-item.active,
+            .carousel-item-next,
+            .carousel-item-prev {
+                display: flex;
+                align-items: center;
                 height: 100%;
                 padding-bottom: 64px;
             }
@@ -804,8 +897,9 @@ table.table_desc tr td {
                     display: inline-block;
                     width: 40px;
                     height: 40px;
+                    line-height: 40px;
                     margin: 2.5px 2.5px 2.5px 2.5px;
-                    padding: 0;
+                    padding: 0 !important;
                     border: 1px solid #aaa;
                     text-indent: initial;
                     background-size: cover;
@@ -827,8 +921,13 @@ table.table_desc tr td {
 // Parallax
 .parallax {
     position: relative;
-    overflow: hidden;
-    z-index: 0;
+
+    // TODO this introduces a limitation: no dropdown will be able to
+    // overflow. Maybe there is a better way to find.
+    &:not(.s_parallax_no_overflow_hidden) {
+        overflow: hidden;
+    }
+
     > * {
         position: relative;
     }
@@ -847,8 +946,14 @@ table.table_desc tr td {
             background-color: inherit;
         }
     }
-    &.s_parallax_is_fixed > .s_parallax_bg {
-        background-attachment: fixed;
+    @include media-breakpoint-up(xl) {
+        // Fixed backgrounds are disabled when using a mobile/tablet device,
+        // which is not a big deal but, on some of them (iOS...), defining the
+        // background as fixed breaks the background-size/position props.
+        // So we enable this only for >= XL devices.
+        &.s_parallax_is_fixed > .s_parallax_bg {
+            background-attachment: fixed;
+        }
     }
 }
 
@@ -981,15 +1086,22 @@ table.table_desc tr td {
 //
 
 // Header
-#wrapwrap .o_header_affix {
+.o_header_affix {
+    display: block;
     @include o-position-absolute(0, 0, auto, 0);
     position: fixed;
     z-index: $zindex-modal - 20;
     background: $light;
-    margin-top: -200px;
+    margin-top: -999px;
     transition: margin-top 500ms ease 0s;
+    @include media-breakpoint-down(sm) {
+        .navbar-collapse {
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+    }
     &.affixed {
-        margin-top: 0px;
+        margin-top: 0px !important; // the default margin-top is adapted in JS
     }
 }
 #oe_main_menu_navbar + #wrapwrap .o_header_affix {
@@ -1020,6 +1132,36 @@ table.table_desc tr td {
     }
 }
 
+// Mega menu
+.o_mega_menu {
+    width: 100%;
+    padding: 0;
+    margin-top: 0;
+    border-radius: 0;
+    background-clip: unset; // Remove the 1px gap introduced by BS4
+
+    .container, .container-fluid {
+        // Need to reforce those because they are removed since its a container
+        // inside another container (the one in the navbar)
+        padding-left: $grid-gutter-width / 2;
+        padding-right: $grid-gutter-width / 2;
+    }
+}
+.o_mega_menu_container_size {
+    @include media-breakpoint-up(md) {
+        left: 50%;
+        transform: translateX(-50%);
+    }
+
+    $-mm-max-widths: ();
+    @each $k, $v in $container-max-widths {
+        $-mm-max-widths: map-merge($-mm-max-widths, (
+            #{$k}: $v - $grid-gutter-width,
+        ));
+    }
+    @include make-container-max-widths($-mm-max-widths);
+}
+
 // Copyright
 .o_footer_copyright {
     padding: 8px;
@@ -1044,19 +1186,35 @@ table.table_desc tr td {
         > .navbar {
             background-color: transparent !important;
             border-color: transparent;
+            color: inherit;
 
             .nav-item {
                 > .nav-link {
                     background-color: transparent;
                     color: inherit;
-                }
-                &.show, &.active {
-                    > .nav-link {
-                        background-color: white;
-                        color: black;
+
+                    &.active {
+                        font-weight: bolder;
                     }
                 }
             }
+        }
+    }
+}
+// Figure with special style
+.o_figure_relative_layout {
+    position: relative;
+
+    .figure-img {
+        margin-bottom: 0;
+    }
+    .figure-caption {
+        @include o-position-absolute(auto, 0, 0, 0);
+        @include o-bg-color(rgba(theme-color('dark'), $o-theme-figcaption-opacity));
+        padding: $tooltip-padding-y $tooltip-padding-x;
+        font-weight: $font-weight-bold;
+        a {
+            color: inherit;
         }
     }
 }
@@ -1067,7 +1225,29 @@ table.table_desc tr td {
     }
 }
 
+@each $media, $color in $o-social-colors {
+    @include text-emphasis-variant(".text-#{$media}", $color);
+}
+
 // TODO: Will be handled properly in master/saas-12.2, temp fix for website_event.registration_attendee_details
 .modal-footer > .float-left {
     margin-right: auto;
+}
+
+// CoverProperties
+.o_record_cover_container {
+    position: relative;
+
+    .o_record_cover_component {
+        @include o-position-absolute(0, 0, 0, 0);
+
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+    }
+}
+
+// Fixing job perks icons in website_hr_recruitement by making them full-width
+.o_perk span {
+    display: block;
 }

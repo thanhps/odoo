@@ -7,15 +7,15 @@ from lxml import etree, html
 
 from odoo.exceptions import AccessError
 from odoo import api, fields, models
-from odoo.tools import pycompat
 
 _logger = logging.getLogger(__name__)
+
+EDITING_ATTRIBUTES = ['data-oe-model', 'data-oe-id', 'data-oe-field', 'data-oe-xpath', 'data-note-id']
 
 
 class IrUiView(models.Model):
     _inherit = 'ir.ui.view'
 
-    @api.multi
     def render(self, values=None, engine='ir.qweb', minimal_qcontext=False):
         if values and values.get('editable'):
             try:
@@ -58,7 +58,6 @@ class IrUiView(models.Model):
             else:
                 Model.browse(int(el.get('data-oe-id'))).write({field: value})
 
-    @api.multi
     def save_oe_structure(self, el):
         self.ensure_one()
 
@@ -69,7 +68,9 @@ class IrUiView(models.Model):
         arch = etree.Element('data')
         xpath = etree.Element('xpath', expr="//*[hasclass('oe_structure')][@id='{}']".format(el.get('id')), position="replace")
         arch.append(xpath)
-        structure = etree.Element(el.tag, attrib=el.attrib)
+        attributes = {k: v for k, v in el.attrib.items() if k not in EDITING_ATTRIBUTES}
+        structure = etree.Element(el.tag, attrib=attributes)
+        structure.text = el.text
         xpath.append(structure)
         for child in el.iterchildren(tag=etree.Element):
             structure.append(copy.deepcopy(child))
@@ -117,9 +118,8 @@ class IrUiView(models.Model):
             return False
         if len(arch1) != len(arch2):
             return False
-        return all(self._are_archs_equal(arch1, arch2) for arch1, arch2 in pycompat.izip(arch1, arch2))
+        return all(self._are_archs_equal(arch1, arch2) for arch1, arch2 in zip(arch1, arch2))
 
-    @api.multi
     def replace_arch_section(self, section_xpath, replacement, replace_tail=False):
         # the root of the arch section shouldn't actually be replaced as it's
         # not really editable itself, only the content truly is editable.
@@ -133,6 +133,12 @@ class IrUiView(models.Model):
             [root] = arch.xpath(section_xpath)
 
         root.text = replacement.text
+
+        # We need to replace some attrib for styles changes on the root element
+        for attribute in ('style', 'class'):
+            if attribute in replacement.attrib:
+                root.attrib[attribute] = replacement.attrib[attribute]
+
         # Note: after a standard edition, the tail *must not* be replaced
         if replace_tail:
             root.tail = replacement.tail
@@ -164,7 +170,6 @@ class IrUiView(models.Model):
     def _set_noupdate(self):
         self.sudo().mapped('model_data_id').write({'noupdate': True})
 
-    @api.multi
     def save(self, value, xpath=None):
         """ Update a view section. The view section may embed fields to write
 
@@ -204,14 +209,14 @@ class IrUiView(models.Model):
             self.write({'arch': self._pretty_arch(new_arch)})
 
     @api.model
-    def _view_get_inherited_children(self, view, options):
+    def _view_get_inherited_children(self, view):
         return view.inherit_children_ids
 
     @api.model
     def _view_obj(self, view_id):
-        if isinstance(view_id, pycompat.string_types):
+        if isinstance(view_id, str):
             return self.search([('key', '=', view_id)], limit=1) or self.env.ref(view_id)
-        elif isinstance(view_id, pycompat.integer_types):
+        elif isinstance(view_id, int):
             return self.browse(view_id)
         # It can already be a view object when called by '_views_get()' that is calling '_view_obj'
         # for it's inherit_children_ids, passing them directly as object record.
@@ -221,7 +226,7 @@ class IrUiView(models.Model):
     # Used by translation mechanism, SEO and optional templates
 
     @api.model
-    def _views_get(self, view_id, options=True, bundles=False, root=True):
+    def _views_get(self, view_id, get_children=True, bundles=False, root=True, visited=None):
         """ For a given view ``view_id``, should return:
                 * the view itself
                 * all views inheriting from it, enabled or not
@@ -235,6 +240,8 @@ class IrUiView(models.Model):
             _logger.warning("Could not find view object with view_id '%s'", view_id)
             return self.env['ir.ui.view']
 
+        if visited is None:
+            visited = []
         while root and view.inherit_id:
             view = view.inherit_id
 
@@ -249,20 +256,21 @@ class IrUiView(models.Model):
                 called_view = self._view_obj(child.get('t-call', child.get('t-call-assets')))
             except ValueError:
                 continue
-            if called_view and called_view not in views_to_return:
-                views_to_return += self._views_get(called_view, options=options, bundles=bundles)
+            if called_view and called_view not in views_to_return and called_view.id not in visited:
+                views_to_return += self._views_get(called_view, get_children=get_children, bundles=bundles, visited=visited + views_to_return.ids)
 
-        extensions = self._view_get_inherited_children(view, options)
-        if not options:
-            # only active children
-            extensions = extensions.filtered(lambda view: view.active)
+        if not get_children:
+            return views_to_return
 
-        # Keep options in a deterministic order regardless of their applicability
+        extensions = self._view_get_inherited_children(view)
+
+        # Keep children in a deterministic order regardless of their applicability
         for extension in extensions.sorted(key=lambda v: v.id):
             # only return optional grandchildren if this child is enabled
-            for ext_view in self._views_get(extension, options=extension.active, root=False):
-                if ext_view not in views_to_return:
-                    views_to_return += ext_view
+            if extension.id not in visited:
+                for ext_view in self._views_get(extension, get_children=extension.active, root=False, visited=visited + views_to_return.ids):
+                    if ext_view not in views_to_return:
+                        views_to_return += ext_view
         return views_to_return
 
     @api.model

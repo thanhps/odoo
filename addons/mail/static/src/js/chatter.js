@@ -31,6 +31,7 @@ var Chatter = Widget.extend({
         discard_record_changes: '_onDiscardRecordChanges',
         reload_attachment_box: '_onReloadAttachmentBox',
         reload_mail_fields: '_onReloadMailFields',
+        reset_suggested_partners: '_onResetSuggestedPartners',
     },
     events: {
         'click .o_chatter_button_new_message': '_onOpenComposerMessage',
@@ -58,7 +59,6 @@ var Chatter = Widget.extend({
 
         this.attachments = {};
         this.fields = {};
-
         this._areAttachmentsLoaded = false;
         this._disableAttachmentBox = !!options.disable_attachment_box;
         this._dp = new concurrency.DropPrevious();
@@ -68,6 +68,7 @@ var Chatter = Widget.extend({
         // suggestions as well once fetched
         this._mentionPartnerSuggestions = this.call('mail_service', 'getMentionPartnerSuggestions');
         this._mentionSuggestions = this._mentionPartnerSuggestions;
+        this._suggestedPartnersProm = undefined;
 
         if (mailFields.mail_activity) {
             this.fields.activity = new Activity(this, mailFields.mail_activity, record, options);
@@ -82,6 +83,7 @@ var Chatter = Widget.extend({
             this.hasLogButton = options.display_log_button || nodeOptions.display_log_button;
             this.postRefresh = nodeOptions.post_refresh || 'never';
             this.reloadOnUploadAttachment = this.postRefresh === 'always';
+            this.openAttachments = nodeOptions.open_attachments || false;
         }
     },
     /**
@@ -96,16 +98,17 @@ var Chatter = Widget.extend({
             }));
         }
         // render and append the buttons
-        this._$topbar.prepend(QWeb.render('mail.chatter.Buttons', {
-            newMessageButton: !!this.fields.thread,
-            logNoteButton: this.hasLogButton,
-            scheduleActivityButton: !!this.fields.activity,
-            isMobile: config.device.isMobile,
-        }));
+        this._$topbar.prepend(this._renderButtons());
         // start and append the widgets
         var fieldDefs = _.invoke(this.fields, 'appendTo', $('<div>'));
-        var def = this._dp.add($.when.apply($, fieldDefs));
-        this._render(def).then(this._updateMentionSuggestions.bind(this));
+        var def = this._dp.add(Promise.all(fieldDefs));
+        this._render(def)
+            .then(this._updateMentionSuggestions.bind(this))
+            .then(() => {
+                if (this.openAttachments) {
+                    this._fetchAttachments().then(() => this._openAttachmentBox());
+                }
+            });
 
         return this._super.apply(this, arguments);
     },
@@ -139,7 +142,7 @@ var Chatter = Widget.extend({
         if (this.fields.activity) {
             this.fields.activity.$el.detach();
         }
-        if (this.fields.thread) {
+        if (this.fields.thread && this.fields.thread.$el ) {
             this.fields.thread.$el.detach();
         }
 
@@ -154,7 +157,7 @@ var Chatter = Widget.extend({
             fieldsToReset = this.fields;
         }
         var fieldDefs = _.invoke(fieldsToReset, 'reset', record);
-        var def = this._dp.add($.when.apply($, fieldDefs));
+        var def = this._dp.add(Promise.all(fieldDefs));
         this._render(def).then(function () {
             self.$el.height('auto');
             self._updateMentionSuggestions();
@@ -204,17 +207,18 @@ var Chatter = Widget.extend({
      * Discard changes on the record.
      *
      * @private
-     * @returns {$.Deferred} resolved if successfully discarding changes on
+     * @returns {Promise} resolved if successfully discarding changes on
      *   the record, rejected otherwise
      */
     _discardChanges: function () {
-        var def = $.Deferred();
-        this.trigger_up('discard_changes', {
-            recordID: this.record.id,
-            onSuccess: def.resolve.bind(def),
-            onFailure: def.reject.bind(def),
+        var self = this;
+        return new Promise(function (resolve, reject) {
+            self.trigger_up('discard_changes', {
+                recordID: self.record.id,
+                onSuccess: resolve,
+                onFailure: reject,
+            });
         });
-        return def;
     },
     /**
      * Discard changes on the record if the message will reload the record
@@ -222,14 +226,14 @@ var Chatter = Widget.extend({
      *
      * @private
      * @param {Object} messageData
-     * @return {$.Deferred} resolved if no reload or proceed to discard the
+     * @return {Promise} resolved if no reload or proceed to discard the
      *   changes on the record, rejected otherwise
      */
     _discardOnReload: function (messageData) {
         if (this._reloadAfterPost(messageData)) {
             return this._discardChanges();
         }
-        return $.when();
+        return Promise.resolve();
     },
     /**
      * @private
@@ -257,7 +261,7 @@ var Chatter = Widget.extend({
             model: 'ir.attachment',
             method: 'search_read',
             domain: domain,
-            fields: ['id', 'name', 'datas_fname', 'mimetype'],
+            fields: ['id', 'name', 'mimetype'],
         }).then(function (result) {
             self._areAttachmentsLoaded = true;
             self.attachments = result;
@@ -324,7 +328,7 @@ var Chatter = Widget.extend({
                             self._reloadAttachmentBox();
                             self.trigger_up('reload', {fieldNames: ['message_attachment_count'], keepChanges: true});
                         }
-                    }).fail(function () {
+                    }).guardedCatch(function () {
                         self._enableComposer();
                     });
                 });
@@ -365,7 +369,7 @@ var Chatter = Widget.extend({
             this._fetchAttachments().then(this._openAttachmentBox.bind(this));
         }
         if (this.fields.thread) {
-            this.trigger_up('reload', { fieldNames: ['message_attachment_count'] });
+            this.trigger_up('reload', { fieldNames: ['message_attachment_count'], keepChanges: true });
         }
     },
     /**
@@ -376,9 +380,9 @@ var Chatter = Widget.extend({
     _render: function (def) {
         // the rendering of the chatter is aynchronous: relational data of its fields needs to be
         // fetched (in some case, it might be synchronous as they hold an internal cache).
-        // this function takes a deferred as argument, which is resolved once all fields have
+        // this function takes a promise as argument, which is resolved once all fields have
         // fetched their data
-        // this function appends the fields where they should be once the given deferred is resolved
+        // this function appends the fields where they should be once the given promise is resolved
         // and if it takes more than 500ms, displays a spinner to indicate that it is loading
         var self = this;
 
@@ -386,6 +390,11 @@ var Chatter = Widget.extend({
         concurrency.rejectAfter(concurrency.delay(500), def).then(function () {
             $spinner.appendTo(self.$el);
         });
+        var always = function () {
+            // disable widgets in create mode, otherwise enable
+            self._isCreateMode ? self._disableChatter() : self._enableChatter();
+            $spinner.remove();
+        };
 
         return def.then(function () {
             if (self.fields.activity) {
@@ -398,13 +407,23 @@ var Chatter = Widget.extend({
                     self.fields.followers.$el.insertBefore(self.$('.o_chatter_button_attachment'));
                 }
             }
-            if (self.fields.thread) {
+            if (self.fields.thread && self.fields.thread.$el) {
                 self.fields.thread.$el.appendTo(self.$el);
             }
-        }).always(function () {
-            // disable widgets in create mode, otherwise enable
-            self._isCreateMode ? self._disableChatter() : self._enableChatter();
-            $spinner.remove();
+        }).then(always).guardedCatch(always);
+    },
+    /**
+     * @private
+     */
+    _resetSuggestedPartners() {
+        this._suggestedPartnersProm = undefined;
+    },
+    _renderButtons: function () {
+        return QWeb.render('mail.chatter.Buttons', {
+            newMessageButton: !!this.fields.thread,
+            logNoteButton: this.hasLogButton,
+            scheduleActivityButton: !!this.fields.activity,
+            isMobile: config.device.isMobile,
         });
     },
     /**
@@ -423,9 +442,9 @@ var Chatter = Widget.extend({
                 default_res_id: record.res_id || false,
                 default_model: record.model || false,
             };
-            // reset the suggested_partners_def to ensure a reload of the
+            // reset the _suggestedPartnersProm to ensure a reload of the
             // suggested partners when opening the composer on another record
-            this.suggested_partners_def = undefined;
+            this._resetSuggestedPartners();
         }
         this.record = record;
         this.recordName = record.data.display_name;
@@ -435,7 +454,11 @@ var Chatter = Widget.extend({
      */
      _updateAttachmentCounter: function () {
         var count = this.record.data.message_attachment_count || 0;
-        this.$('.o_chatter_attachment_button_count').html(count);
+        var $element = this.$('.o_chatter_attachment_button_count');
+        if (Number($element.html()) !== count) {
+            this._areAttachmentsLoaded = false;
+            $element.html(count);
+        }
      },
     /**
      * @private
@@ -471,6 +494,7 @@ var Chatter = Widget.extend({
             }));
         });
     },
+
 
     //--------------------------------------------------------------------------
     // Handlers
@@ -518,7 +542,7 @@ var Chatter = Widget.extend({
             if (!this._areAttachmentsLoaded) {
                 def = this._fetchAttachments();
             }
-            $.when(def).then(this._openAttachmentBox.bind(this));
+            Promise.resolve(def).then(this._openAttachmentBox.bind(this));
         }
     },
     /**
@@ -534,13 +558,16 @@ var Chatter = Widget.extend({
     },
     _onOpenComposerMessage: function () {
         var self = this;
-        if (!this.suggested_partners_def) {
-            this.suggested_partners_def = $.Deferred();
-            var method = 'message_get_suggested_recipients';
-            var args = [[this.context.default_res_id], this.context];
-            this._rpc({model: this.record.model, method: method, args: args})
-                .then(function (result) {
-                    if (!self.suggested_partners_def) {
+        if (!this._suggestedPartnersProm) {
+            this._suggestedPartnersProm = new Promise(function (resolve, reject) {
+                self._rpc({
+                    route: '/mail/get_suggested_recipients',
+                    params: {
+                        model: self.record.model,
+                        res_ids: [self.context.default_res_id],
+                    },
+                }).then(function (result) {
+                    if (!self._suggestedPartnersProm) {
                         return; // widget has been reset (e.g. we just switched to another record)
                     }
                     var suggested_partners = [];
@@ -556,10 +583,11 @@ var Chatter = Widget.extend({
                             reason: recipient[2],
                         });
                     });
-                    self.suggested_partners_def.resolve(suggested_partners);
+                    resolve(suggested_partners);
                 });
+            });
         }
-        this.suggested_partners_def.then(function (suggested_partners) {
+        this._suggestedPartnersProm.then(function (suggested_partners) {
             self._openComposer({ isLog: false, suggested_partners: suggested_partners });
         });
     },
@@ -602,6 +630,14 @@ var Chatter = Widget.extend({
             fieldNames: fieldNames,
             keepChanges: true,
         });
+    },
+    /**
+     * @private
+     * @param {OdooEvent} ev
+     */
+    _onResetSuggestedPartners(ev) {
+        ev.stopPropagation();
+        this._resetSuggestedPartners();
     },
     /**
      * @private

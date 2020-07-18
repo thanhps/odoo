@@ -28,7 +28,7 @@ class Users(models.Model):
     notification_type = fields.Selection([
         ('email', 'Handle by Emails'),
         ('inbox', 'Handle in Odoo')],
-        'Notification Management', required=True, default='email',
+        'Notification', required=True, default='email',
         help="Policy on how to handle Chatter notifications:\n"
              "- Handle by Emails: notifications are sent to your email address\n"
              "- Handle in Odoo: notifications appear in your Odoo Inbox")
@@ -38,9 +38,9 @@ class Users(models.Model):
     moderation_channel_ids = fields.Many2many(
         'mail.channel', 'mail_channel_moderator_rel',
         string='Moderated channels')
+    out_of_office_message = fields.Char(string='Chat Status')
 
     @api.depends('moderation_channel_ids.moderation', 'moderation_channel_ids.moderator_ids')
-    @api.multi
     def _compute_is_moderator(self):
         moderated = self.env['mail.channel'].search([
             ('id', 'in', self.mapped('moderation_channel_ids').ids),
@@ -51,7 +51,6 @@ class Users(models.Model):
         for user in self:
             user.is_moderator = user in user_ids
 
-    @api.multi
     def _compute_moderation_counter(self):
         self._cr.execute("""
 SELECT channel_moderator.res_users_id, COUNT(msg.id)
@@ -74,10 +73,10 @@ GROUP BY channel_moderator.res_users_id""", [tuple(self.ids)])
         init_res = super(Users, self).__init__(pool, cr)
         # duplicate list to avoid modifying the original reference
         type(self).SELF_WRITEABLE_FIELDS = list(self.SELF_WRITEABLE_FIELDS)
-        type(self).SELF_WRITEABLE_FIELDS.extend(['notification_type'])
+        type(self).SELF_WRITEABLE_FIELDS.extend(['notification_type', 'out_of_office_message'])
         # duplicate list to avoid modifying the original reference
         type(self).SELF_READABLE_FIELDS = list(self.SELF_READABLE_FIELDS)
-        type(self).SELF_READABLE_FIELDS.extend(['notification_type'])
+        type(self).SELF_READABLE_FIELDS.extend(['notification_type', 'out_of_office_message'])
         return init_res
 
     @api.model
@@ -92,7 +91,6 @@ GROUP BY channel_moderator.res_users_id""", [tuple(self.ids)])
         self.env['mail.channel'].search([('group_ids', 'in', user.groups_id.ids)])._subscribe_users()
         return user
 
-    @api.multi
     def write(self, vals):
         write_res = super(Users, self).write(vals)
         sel_groups = [vals[k] for k in vals if is_selection_groups(k) and vals[k]]
@@ -129,17 +127,23 @@ GROUP BY channel_moderator.res_users_id""", [tuple(self.ids)])
         user_activities = {}
         for activity in activity_data:
             if not user_activities.get(activity['model']):
+                module = self.env[activity['model']]._original_module
+                icon = module and modules.module.get_module_icon(module)
                 user_activities[activity['model']] = {
                     'name': model_names[activity['id']],
                     'model': activity['model'],
                     'type': 'activity',
-                    'icon': modules.module.get_module_icon(self.env[activity['model']]._original_module),
+                    'icon': icon,
                     'total_count': 0, 'today_count': 0, 'overdue_count': 0, 'planned_count': 0,
                 }
             user_activities[activity['model']]['%s_count' % activity['states']] += activity['count']
             if activity['states'] in ('today', 'overdue'):
                 user_activities[activity['model']]['total_count'] += activity['count']
 
+            user_activities[activity['model']]['actions'] = [{
+                'icon': 'fa-clock-o',
+                'name': 'Summary',
+            }]
         return list(user_activities.values())
 
 
@@ -152,7 +156,6 @@ class res_groups_mail_channel(models.Model):
     _inherit = 'res.groups'
     _description = 'Access Groups'
 
-    @api.multi
     def write(self, vals, context=None):
         write_res = super(res_groups_mail_channel, self).write(vals)
         if vals.get('users'):

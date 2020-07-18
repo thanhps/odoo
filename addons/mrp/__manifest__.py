@@ -6,7 +6,7 @@
     'name': 'Manufacturing',
     'version': '2.0',
     'website': 'https://www.odoo.com/page/manufacturing',
-    'category': 'Manufacturing',
+    'category': 'Manufacturing/Manufacturing',
     'sequence': 16,
     'summary': 'Manufacturing Orders & BOMs',
     'depends': ['product', 'stock', 'resource'],
@@ -38,6 +38,7 @@
         'report/mrp_report_bom_structure.xml',
         'report/mrp_production_templates.xml',
         'report/report_stock_rule.xml',
+        'report/mrp_zebra_production_templates.xml',
     ],
     'qweb': ['static/src/xml/mrp.xml'],
     'demo': [
@@ -46,4 +47,5 @@
     'test': [],
     'application': True,
     'post_init_hook': '_create_warehouse_data',
+    'uninstall_hook': 'uninstall_hook',
 }

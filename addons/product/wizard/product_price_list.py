@@ -16,16 +16,11 @@ class product_price_list(models.TransientModel):
     qty4 = fields.Integer('Quantity-4', default=0)
     qty5 = fields.Integer('Quantity-5', default=0)
 
-    @api.multi
     def print_report(self):
         """
         To get the date and print the report
         @return : return report
         """
-        if (not self.env.user.company_id.logo):
-            raise UserError(_("You have to set a logo or a layout for your company."))
-        elif (not self.env.user.company_id.external_report_layout_id):
-            raise UserError(_("You have to set your reports's header and footer layout."))
 
         datas = {'ids': self.env.context.get('active_ids', [])}
         res = self.read(['price_list', 'qty1', 'qty2', 'qty3', 'qty4', 'qty5'])

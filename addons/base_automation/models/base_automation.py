@@ -43,7 +43,7 @@ class BaseAutomation(models.Model):
         ('on_unlink', 'On Deletion'),
         ('on_change', 'Based on Form Modification'),
         ('on_time', 'Based on Timed Condition')
-        ], string='Trigger Condition', required=True, oldname="kind")
+        ], string='Trigger Condition', required=True)
     trg_date_id = fields.Many2one('ir.model.fields', string='Trigger Date',
                                   help="""When should the condition be triggered.
                                   If present, will be checked by the scheduler. If empty, will be checked at creation and update.""",
@@ -61,6 +61,9 @@ class BaseAutomation(models.Model):
     filter_domain = fields.Char(string='Apply on', help="If present, this condition must be satisfied before executing the action rule.")
     last_run = fields.Datetime(readonly=True, copy=False)
     on_change_fields = fields.Char(string="On Change Fields Trigger", help="Comma-separated list of field names that triggers the onchange.")
+    trigger_field_ids = fields.Many2many('ir.model.fields', string='Watched fields',
+                                        help="The action will be triggered if and only if one of these fields is updated."
+                                             "If empty, all fields are watched.")
 
     # which fields have an impact on the registry
     CRITICAL_FIELDS = ['model_id', 'active', 'trigger', 'on_change_fields']
@@ -99,7 +102,6 @@ class BaseAutomation(models.Model):
         self._update_registry()
         return base_automation
 
-    @api.multi
     def write(self, vals):
         res = super(BaseAutomation, self).write(vals)
         if set(vals).intersection(self.CRITICAL_FIELDS):
@@ -107,7 +109,6 @@ class BaseAutomation(models.Model):
             self._update_registry()
         return res
 
-    @api.multi
     def unlink(self):
         res = super(BaseAutomation, self).unlink()
         self._update_cron()
@@ -124,11 +125,10 @@ class BaseAutomation(models.Model):
     def _update_registry(self):
         """ Update the registry after a modification on action rules. """
         if self.env.registry.ready and not self.env.context.get('import_file'):
-            # for the sake of simplicity, simply force the registry to reload
-            self._cr.commit()
-            self.env.reset()
-            registry = Registry.new(self._cr.dbname)
-            registry.registry_invalidated = True
+            # re-install the model patches, and notify other workers
+            self._unregister_hook()
+            self._register_hook()
+            self.env.registry.registry_invalidated = True
 
     def _get_actions(self, records, triggers):
         """ Return the actions of the given triggers for records' model. The
@@ -156,7 +156,7 @@ class BaseAutomation(models.Model):
         """ Filter the records that satisfy the precondition of action ``self``. """
         if self.filter_pre_domain and records:
             domain = [('id', 'in', records.ids)] + safe_eval(self.filter_pre_domain, self._get_eval_context())
-            return records.search(domain)
+            return records.sudo().search(domain).with_env(records.env)
         else:
             return records
 
@@ -167,9 +167,19 @@ class BaseAutomation(models.Model):
         """ Filter the records that satisfy the postcondition of action ``self``. """
         if self.filter_domain and records:
             domain = [('id', 'in', records.ids)] + safe_eval(self.filter_domain, self._get_eval_context())
-            return records.search(domain), domain
+            return records.sudo().search(domain).with_env(records.env), domain
         else:
             return records, None
+
+    @api.model
+    def _add_postmortem_action(self, e):
+        if self.user_has_groups('base.group_user'):
+            e.context = {}
+            e.context['exception_class'] = 'base_automation'
+            e.context['base_automation'] = {
+                'id': self.id,
+                'name': self.name,
+            }
 
     def _process(self, records, domain_post=None):
         """ Process action ``self`` on the ``records`` that have not been done yet. """
@@ -196,15 +206,42 @@ class BaseAutomation(models.Model):
         # execute server actions
         if self.action_server_id:
             for record in records:
-                ctx = {
-                    'active_model': record._name,
-                    'active_ids': record.ids,
-                    'active_id': record.id,
-                    'domain_post': domain_post,
-                }
-                self.action_server_id.with_context(**ctx).run()
+                # we process the action if any watched field has been modified
+                if self._check_trigger_fields(record):
+                    ctx = {
+                        'active_model': record._name,
+                        'active_ids': record.ids,
+                        'active_id': record.id,
+                        'domain_post': domain_post,
+                    }
+                    try:
+                        self.action_server_id.with_context(**ctx).run()
+                    except Exception as e:
+                        self._add_postmortem_action(e)
+                        raise e
 
-    @api.model_cr
+    def _check_trigger_fields(self, record):
+        """ Return whether any of the trigger fields has been modified on ``record``. """
+        if not self.trigger_field_ids:
+            # all fields are implicit triggers
+            return True
+
+        if not self._context.get('old_values'):
+            # this is a create: all fields are considered modified
+            return True
+
+        # Note: old_vals are in the format of read()
+        old_vals = self._context['old_values'].get(record.id, {})
+
+        def differ(name):
+            field = record._fields[name]
+            return (
+                name in old_vals and
+                field.convert_to_cache(record[name], record, validate=False) !=
+                field.convert_to_cache(old_vals[name], record, validate=False)
+            )
+        return any(differ(field.name) for field in self.trigger_field_ids)
+
     def _register_hook(self):
         """ Patch models that should trigger action rules based on creation,
             modification, deletion of records and form onchanges.
@@ -234,13 +271,8 @@ class BaseAutomation(models.Model):
             return create
 
         def make_write():
-            """ Instanciate a _write method that processes action rules. """
-            #
-            # Note: we patch method _write() instead of write() in order to
-            # catch updates made by field recomputations.
-            #
-            @api.multi
-            def _write(self, vals, **kw):
+            """ Instanciate a write method that processes action rules. """
+            def write(self, vals, **kw):
                 # retrieve the action rules to possibly execute
                 actions = self.env['base.automation']._get_actions(self, ['on_write', 'on_create_or_write'])
                 records = self.with_env(actions.env)
@@ -252,18 +284,47 @@ class BaseAutomation(models.Model):
                     for old_vals in (records.read(list(vals)) if vals else [])
                 }
                 # call original method
-                _write.origin(records, vals, **kw)
+                write.origin(records, vals, **kw)
                 # check postconditions, and execute actions on the records that satisfy them
                 for action in actions.with_context(old_values=old_values):
                     records, domain_post = action._filter_post_export_domain(pre[action])
                     action._process(records, domain_post=domain_post)
                 return True
 
-            return _write
+            return write
+
+        def make_compute_field_value():
+            """ Instanciate a compute_field_value method that processes action rules. """
+            #
+            # Note: This is to catch updates made by field recomputations.
+            #
+            def _compute_field_value(self, field):
+                # determine fields that may trigger an action
+                stored_fields = [f for f in self._field_computed[field] if f.store]
+                if not any(stored_fields):
+                    return _compute_field_value.origin(self, field)
+                # retrieve the action rules to possibly execute
+                actions = self.env['base.automation']._get_actions(self, ['on_write', 'on_create_or_write'])
+                records = self.filtered('id').with_env(actions.env)
+                # check preconditions on records
+                pre = {action: action._filter_pre(records) for action in actions}
+                # read old values before the update
+                old_values = {
+                    old_vals.pop('id'): old_vals
+                    for old_vals in (records.read([f.name for f in stored_fields]))
+                }
+                # call original method
+                _compute_field_value.origin(self, field)
+                # check postconditions, and execute actions on the records that satisfy them
+                for action in actions.with_context(old_values=old_values):
+                    records, domain_post = action._filter_post_export_domain(pre[action])
+                    action._process(records, domain_post=domain_post)
+                return True
+
+            return _compute_field_value
 
         def make_unlink():
             """ Instanciate an unlink method that processes action rules. """
-            @api.multi
             def unlink(self, **kwargs):
                 # retrieve the action rules to possibly execute
                 actions = self.env['base.automation']._get_actions(self, ['on_unlink'])
@@ -282,7 +343,12 @@ class BaseAutomation(models.Model):
                 action_rule = self.env['base.automation'].browse(action_rule_id)
                 result = {}
                 server_action = action_rule.action_server_id.with_context(active_model=self._name, onchange_self=self)
-                res = server_action.run()
+                try:
+                    res = server_action.run()
+                except Exception as e:
+                    action_rule._add_postmortem_action(e)
+                    raise e
+
                 if res:
                     if 'value' in res:
                         res['value'].pop('id', None)
@@ -318,10 +384,12 @@ class BaseAutomation(models.Model):
 
             elif action_rule.trigger == 'on_create_or_write':
                 patch(Model, 'create', make_create())
-                patch(Model, '_write', make_write())
+                patch(Model, 'write', make_write())
+                patch(Model, '_compute_field_value', make_compute_field_value())
 
             elif action_rule.trigger == 'on_write':
-                patch(Model, '_write', make_write())
+                patch(Model, 'write', make_write())
+                patch(Model, '_compute_field_value', make_compute_field_value())
 
             elif action_rule.trigger == 'on_unlink':
                 patch(Model, 'unlink', make_unlink())
@@ -331,6 +399,16 @@ class BaseAutomation(models.Model):
                 method = make_onchange(action_rule.id)
                 for field_name in action_rule.on_change_fields.split(","):
                     Model._onchange_methods[field_name.strip()].append(method)
+
+    def _unregister_hook(self):
+        """ Remove the patches installed by _register_hook() """
+        NAMES = ['create', 'write', '_compute_field_value', 'unlink', '_onchange_methods']
+        for Model in self.env.registry.values():
+            for name in NAMES:
+                try:
+                    delattr(Model, name)
+                except AttributeError:
+                    pass
 
     @api.model
     def _check_delay(self, action, record, record_dt):

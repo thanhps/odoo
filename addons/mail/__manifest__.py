@@ -11,6 +11,7 @@
     'data': [
         'wizard/invite_view.xml',
         'wizard/mail_compose_message_view.xml',
+        'wizard/mail_resend_cancel_views.xml',
         'wizard/mail_resend_message_views.xml',
         'views/mail_message_subtype_views.xml',
         'views/mail_tracking_views.xml',
@@ -57,6 +58,7 @@
         'static/src/xml/abstract_thread_window.xml',
         'static/src/xml/thread_window.xml',
         'static/src/xml/announcement.xml',
+        'static/src/xml/user_menu.xml',
         'static/src/xml/web_kanban_activity.xml',
     ],
 }

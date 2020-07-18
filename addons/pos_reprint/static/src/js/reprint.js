@@ -21,8 +21,12 @@ var ReprintReceiptScreenWidget = screens.ReceiptScreenWidget.extend({
     click_back: function() {
         this._super();
         this.gui.show_screen('products');
+        // old order may be reprinted but
+        // the current is still open
+        this.pos.get_order()._printed = false;
     },
     get_receipt_render_env: function() {
+        this.pos.last_receipt_render_env.receipt.reprint = true;
         return this.pos.last_receipt_render_env;
     },
 });
@@ -46,7 +50,7 @@ screens.define_action_button({
     'name': 'reprint',
     'widget': ReprintButton,
     'condition': function(){
-        return this.pos.config.iface_print_via_proxy;
+        return this.pos.config.module_pos_reprint;
     },
 });
 

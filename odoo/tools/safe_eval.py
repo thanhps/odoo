@@ -24,7 +24,6 @@ import logging
 import sys
 import werkzeug
 
-from . import pycompat
 from .misc import ustr
 from . import pycompat
 
@@ -105,6 +104,8 @@ _SAFE_OPCODES = _EXPR_OPCODES.union(set(opmap[x] for x in [
     'CALL_METHOD', 'LOAD_METHOD',
     'GET_ITER', 'FOR_ITER', 'YIELD_VALUE',
     'JUMP_FORWARD', 'JUMP_IF_TRUE', 'JUMP_IF_FALSE', 'JUMP_ABSOLUTE',
+    # Added in P3.8: https://bugs.python.org/issue17611
+    'BEGIN_FINALLY', 'CALL_FINALLY', 'POP_FINALLY',
     # New in Python 2.7 - http://bugs.python.org/issue4715 :
     'JUMP_IF_FALSE_OR_POP', 'JUMP_IF_TRUE_OR_POP', 'POP_JUMP_IF_FALSE',
     'POP_JUMP_IF_TRUE', 'SETUP_EXCEPT', 'SETUP_FINALLY', 'END_FINALLY',
@@ -273,7 +274,7 @@ _BUILTINS = {
     'None': None,
     'bytes': bytes,
     'str': str,
-    'unicode': pycompat.text_type,
+    'unicode': str,
     'bool': bool,
     'int': int,
     'float': float,

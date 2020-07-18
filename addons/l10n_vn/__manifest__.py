@@ -24,13 +24,14 @@ with Chart of account under Circular No. 200/2014/TT-BTC
         "base_iban"
     ],
     "data": [
-         'data/res.country.state.csv',
          'data/l10n_vn_chart_data.xml',
          'data/account.account.template.csv',
          'data/l10n_vn_chart_post_data.xml',
          'data/account_data.xml',
+         'data/account_tax_report_data.xml',
          'data/account_tax_data.xml',
          'data/account_chart_template_data.xml',
+         'views/account_reconcile_model_views.xml',
     ],
     'post_init_hook': '_preserve_tag_on_taxes',
 }

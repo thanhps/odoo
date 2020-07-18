@@ -52,9 +52,8 @@ class ServerActions(models.Model):
 
     @api.onchange('template_id')
     def on_change_template_id(self):
-        """ Render the raw template in the server action fields. """
-        if self.template_id and not self.template_id.email_from:
-            raise UserError(_('Your template should define email_from'))
+        # TODO: remove in master
+        pass
 
     @api.constrains('state', 'model_id')
     def _check_mail_thread(self):
@@ -65,12 +64,12 @@ class ServerActions(models.Model):
     @api.constrains('state', 'model_id')
     def _check_activity_mixin(self):
         for action in self:
-            if action.state == 'next_activity' and not issubclass(self.pool[action.model_id.model], self.pool['mail.thread']):
+            if action.state == 'next_activity' and not action.model_id.is_mail_thread:
                 raise ValidationError(_("A next activity can only be planned on models that use the chatter"))
 
     @api.model
     def run_action_followers_multi(self, action, eval_context=None):
-        Model = self.env[action.model_id.model]
+        Model = self.env[action.model_name]
         if self.partner_ids or self.channel_ids and hasattr(Model, 'message_subscribe'):
             records = Model.browse(self._context.get('active_ids', self._context.get('active_id')))
             records.message_subscribe(self.partner_ids.ids, self.channel_ids.ids)
@@ -83,7 +82,7 @@ class ServerActions(models.Model):
         When need to know it to skip these steps.
         Except if the computed field is supposed to trigger the action
         """
-        records = self.env[action.model_id.model].browse(
+        records = self.env[action.model_name].browse(
             self._context.get('active_ids', self._context.get('active_id')))
         old_values = action._context.get('old_values')
         if old_values:
@@ -99,7 +98,7 @@ class ServerActions(models.Model):
                 # Pick an arbitrary field; if it is marked to be recomputed,
                 # it means we are in an extraneous write triggered by the recompute.
                 # In this case, we should not create a new activity.
-                if records._recompute_check(field):
+                if records & self.env.records_to_compute(field):
                     return True
         return False
 
@@ -112,6 +111,7 @@ class ServerActions(models.Model):
         # with wrong values in subsequent operations
         cleaned_ctx = dict(self.env.context)
         cleaned_ctx.pop('default_type', None)
+        cleaned_ctx.pop('default_parent_id', None)
         action.template_id.with_context(cleaned_ctx).send_mail(self._context.get('active_id'), force_send=False, raise_exception=False)
         return False
 
@@ -120,7 +120,7 @@ class ServerActions(models.Model):
         if not action.activity_type_id or not self._context.get('active_id') or self._is_recompute(action):
             return False
 
-        records = self.env[action.model_id.model].browse(self._context.get('active_ids', self._context.get('active_id')))
+        records = self.env[action.model_name].browse(self._context.get('active_ids', self._context.get('active_id')))
 
         vals = {
             'summary': action.activity_summary or '',
@@ -130,6 +130,7 @@ class ServerActions(models.Model):
         if action.activity_date_deadline_range > 0:
             vals['date_deadline'] = fields.Date.context_today(action) + relativedelta(**{action.activity_date_deadline_range_type: action.activity_date_deadline_range})
         for record in records:
+            user = False
             if action.activity_user_type == 'specific':
                 user = action.activity_user_id
             elif action.activity_user_type == 'generic' and action.activity_user_field_name in record:

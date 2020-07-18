@@ -3,21 +3,23 @@
 # * website_gengo
 # 
 # Translators:
-# e2f <projects@e2f.com>, 2018
-# bb76cd9ac0cb7e20167a14728edb858b, 2018
-# Martin Trigaux, 2018
-# Olivier Lenoir <olivier.lenoir@free.fr>, 2018
-# Florian Hatat, 2018
-# lucasdeliege <deliegelucas@gmail.com>, 2018
-# Lucas Deliege <lud@odoo.com>, 2018
+# Cécile Collart <cco@odoo.com>, 2019
+# e2f <projects@e2f.com>, 2019
+# bb76cd9ac0cb7e20167a14728edb858b, 2019
+# Martin Trigaux, 2019
+# Olivier Lenoir <olivier.lenoir@free.fr>, 2019
+# Florian Hatat, 2019
+# lucasdeliege <deliegelucas@gmail.com>, 2019
+# Lucas Deliege <lud@odoo.com>, 2019
+# Julien Goergen <jgo@odoo.com>, 2020
 # 
 msgid ""
 msgstr ""
-"Project-Id-Version: Odoo Server 12.0\n"
+"Project-Id-Version: Odoo Server saas~12.2\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2019-03-29 10:10+0000\n"
-"PO-Revision-Date: 2018-08-24 09:34+0000\n"
-"Last-Translator: Lucas Deliege <lud@odoo.com>, 2018\n"
+"POT-Creation-Date: 2019-03-20 13:50+0000\n"
+"PO-Revision-Date: 2019-08-26 09:15+0000\n"
+"Last-Translator: Julien Goergen <jgo@odoo.com>, 2020\n"
 "Language-Team: French (https://www.transifex.com/odoo/teams/41243/fr/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -27,42 +29,42 @@ msgstr ""
 
 #. module: website_gengo
 #. openerp-web
-#: code:addons/website_gengo/static/src/xml/website.gengo.xml:144
+#: code:addons/website_gengo/static/src/xml/website.gengo.xml:120
 #, python-format
 msgid "- Enable if you using testing account"
 msgstr "- Activer si vous utilisez un compte de test"
 
 #. module: website_gengo
 #. openerp-web
-#: code:addons/website_gengo/static/src/xml/website.gengo.xml:138
+#: code:addons/website_gengo/static/src/xml/website.gengo.xml:114
 #, python-format
 msgid "- Jobs are Automatically Approved by Gengo."
 msgstr "- Les travaux sont automatiquement approuvés par Gengo."
 
 #. module: website_gengo
 #. openerp-web
-#: code:addons/website_gengo/static/src/xml/website.gengo.xml:118
+#: code:addons/website_gengo/static/src/xml/website.gengo.xml:94
 #, python-format
 msgid "1. Go To your"
 msgstr "1. Selon vous"
 
 #. module: website_gengo
 #. openerp-web
-#: code:addons/website_gengo/static/src/xml/website.gengo.xml:119
+#: code:addons/website_gengo/static/src/xml/website.gengo.xml:95
 #, python-format
 msgid "2. Then paste generated keys in given form"
 msgstr "2. Puis coller les clés générées sous la forme donnée"
 
 #. module: website_gengo
 #. openerp-web
-#: code:addons/website_gengo/static/src/xml/website.gengo.xml:29
+#: code:addons/website_gengo/static/src/xml/website.gengo.xml:18
 #, python-format
 msgid "Already translated content"
 msgstr "Contenu déjà traduit"
 
 #. module: website_gengo
 #. openerp-web
-#: code:addons/website_gengo/static/src/xml/website.gengo.xml:137
+#: code:addons/website_gengo/static/src/xml/website.gengo.xml:113
 #, python-format
 msgid "Auto Approve Translation"
 msgstr "Approbation automatique de taduction"
@@ -77,7 +79,7 @@ msgstr "Traduire automatiquement"
 #. module: website_gengo
 #: model:ir.model,name:website_gengo.model_base_gengo_translations
 msgid "Base Gengo Translations"
-msgstr ""
+msgstr "Traductions Basiques Gengo"
 
 #. module: website_gengo
 #. openerp-web
@@ -113,14 +115,14 @@ msgstr "Traduire ce contenu ou bien l'envoyer à"
 
 #. module: website_gengo
 #. openerp-web
-#: code:addons/website_gengo/static/src/js/website_gengo.js:85
+#: code:addons/website_gengo/static/src/js/website_gengo.js:90
 #, python-format
 msgid "Could not Post translation"
 msgstr "Impossible de publier la traduction"
 
 #. module: website_gengo
 #. openerp-web
-#: code:addons/website_gengo/static/src/js/website_gengo.js:192
+#: code:addons/website_gengo/static/src/js/website_gengo.js:206
 #, python-format
 msgid "Could not submit ! Try Again"
 msgstr "Échec de l'envoi. Réessayez"
@@ -260,21 +262,21 @@ msgstr "Traduction en cours"
 
 #. module: website_gengo
 #. openerp-web
-#: code:addons/website_gengo/static/src/xml/website.gengo.xml:26
+#: code:addons/website_gengo/static/src/xml/website.gengo.xml:15
 #, python-format
 msgid "Translation in process (Gengo)"
 msgstr "Traduction en cours (Gengo)"
 
 #. module: website_gengo
 #. openerp-web
-#: code:addons/website_gengo/static/src/xml/website.gengo.xml:89
+#: code:addons/website_gengo/static/src/xml/website.gengo.xml:64
 #, python-format
 msgid "Translator statistics for this page"
 msgstr "Statistiques du traducteur pour cette page"
 
 #. module: website_gengo
 #. openerp-web
-#: code:addons/website_gengo/static/src/xml/website.gengo.xml:70
+#: code:addons/website_gengo/static/src/xml/website.gengo.xml:46
 #, python-format
 msgid "Ultra - $"
 msgstr "Ultra - $"

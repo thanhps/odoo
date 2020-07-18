@@ -31,4 +31,22 @@ class TestWebsiteResetPassword(HttpCase):
             return original_send_mail(*args, **kwargs)
 
         with patch.object(MailMail, 'unlink', lambda self: None), patch.object(MailTemplate, 'send_mail', my_send_mail):
-            self.browser_js("/", "odoo.__DEBUG__.services['web_tour.tour'].run('website_reset_password')", "odoo.__DEBUG__.services['web_tour.tour'].tours.website_reset_password.ready", login="admin")
+            self.start_tour("/", 'website_reset_password', login="admin")
+
+    def test_02_multi_user_login(self):
+        # In case Specific User Account is activated on a website, the same login can be used for
+        # several users. Make sure we can still log in if 2 users exist.
+        website = self.env["website"].get_current_website()
+        website.ensure_one()
+
+        # Use AAA and ZZZ as names since res.users are ordered by 'login, name'
+        user1 = self.env["res.users"].create(
+            {"website_id": False, "login": "bobo@mail.com", "name": "AAA", "password": "bobo@mail.com"}
+        )
+        user2 = self.env["res.users"].create(
+            {"website_id": website.id, "login": "bobo@mail.com", "name": "ZZZ", "password": "bobo@mail.com"}
+        )
+
+        # The most specific user should be selected
+        self.authenticate("bobo@mail.com", "bobo@mail.com")
+        self.assertEqual(self.session["uid"], user2.id)

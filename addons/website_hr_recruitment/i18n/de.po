@@ -1,25 +1,26 @@
 # Translation of Odoo Server.
 # This file contains the translation of the following modules:
-# * website_hr_recruitment
+# 	* website_hr_recruitment
 # 
 # Translators:
-# e2f <projects@e2f.com>, 2018
-# Martin Trigaux, 2018
-# Wolfgang Taferner, 2018
-# Ermin Trevisan <trevi@twanda.com>, 2018
-# Fabian Liesch <fabian.liesch@gmail.com>, 2018
-# Katharina Moritz <kmo@e2f.com>, 2018
-# Niki Waibel, 2018
-# Jan Brodersen <4rmitxes@gmail.com>, 2018
-# Jan Meyer, 2018
+# e2f <projects@e2f.com>, 2019
+# Martin Trigaux, 2019
+# Wolfgang Taferner, 2019
+# Ermin Trevisan <trevi@twanda.com>, 2019
+# Fabian Liesch <fabian.liesch@gmail.com>, 2019
+# Katharina Moritz <kmo@e2f.com>, 2019
+# Niki Waibel, 2019
+# Jan Brodersen <4rmitxes@gmail.com>, 2019
+# Jan Meyer, 2019
+# Chris Egal <sodaswed@web.de>, 2019
 # 
 msgid ""
 msgstr ""
-"Project-Id-Version: Odoo Server 12.0\n"
+"Project-Id-Version: Odoo Server saas~12.5\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2019-01-09 10:32+0000\n"
-"PO-Revision-Date: 2018-08-24 09:34+0000\n"
-"Last-Translator: Jan Meyer, 2018\n"
+"POT-Creation-Date: 2019-09-27 09:12+0000\n"
+"PO-Revision-Date: 2019-08-26 09:15+0000\n"
+"Last-Translator: Chris Egal <sodaswed@web.de>, 2019\n"
 "Language-Team: German (https://www.transifex.com/odoo/teams/41243/de/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -93,6 +94,8 @@ msgid ""
 "<span class=\"fa fa-2x fa-coffee\"/>\n"
 "                    Eat &amp; Drink"
 msgstr ""
+"<span class=\"fa fa-2x fa-coffee\"/>\n"
+"                    Essen &amp; Trinken"
 
 #. module: website_hr_recruitment
 #: model_terms:ir.ui.view,arch_db:website_hr_recruitment.default_website_description
@@ -100,6 +103,8 @@ msgid ""
 "<span class=\"fa fa-2x fa-futbol-o\"/>\n"
 "                    Sport Activity"
 msgstr ""
+"<span class=\"fa fa-2x fa-futbol-o\"/>\n"
+"                    Sportliche Aktivitäten"
 
 #. module: website_hr_recruitment
 #: model_terms:ir.ui.view,arch_db:website_hr_recruitment.default_website_description
@@ -120,6 +125,11 @@ msgstr ""
 msgid ""
 "<span class=\"fa fa-2x fa-sun-o\"/>\n"
 "                    PTOs"
+msgstr ""
+
+#. module: website_hr_recruitment
+#: model_terms:ir.ui.view,arch_db:website_hr_recruitment.hr_job_website_inherit
+msgid "<span class=\"o_recruitment_purple\">Published</span>"
 msgstr ""
 
 #. module: website_hr_recruitment
@@ -182,6 +192,13 @@ msgid "Applicant"
 msgstr "Bewerber"
 
 #. module: website_hr_recruitment
+#. openerp-web
+#: code:addons/website_hr_recruitment/static/src/js/website_hr_recruitment_editor.js:0
+#, python-format
+msgid "Applied Job"
+msgstr "Arbeitsstelle"
+
+#. module: website_hr_recruitment
 #: model_terms:ir.ui.view,arch_db:website_hr_recruitment.apply
 msgid "Apply Job"
 msgstr "Auf die Stelle bewerben"
@@ -224,7 +241,7 @@ msgstr "Gratulation!"
 #. module: website_hr_recruitment
 #: model_terms:ir.ui.view,arch_db:website_hr_recruitment.index
 msgid "Contact us"
-msgstr "Kontaktieren Sie uns"
+msgstr "Kontakt"
 
 #. module: website_hr_recruitment
 #: model_terms:ir.ui.view,arch_db:website_hr_recruitment.thankyou_ir_ui_view
@@ -239,6 +256,14 @@ msgid ""
 msgstr ""
 "Erstellen Sie mit der Schaltfläche <strong><i>+Neu</i></strong> oben rechts "
 "neue Job-Seiten."
+
+#. module: website_hr_recruitment
+#. openerp-web
+#: code:addons/website_hr_recruitment/static/src/js/website_hr_recruitment_editor.js:0
+#: model_terms:ir.ui.view,arch_db:website_hr_recruitment.apply
+#, python-format
+msgid "Department"
+msgstr "Abteilung"
 
 #. module: website_hr_recruitment
 #: model_terms:ir.ui.view,arch_db:website_hr_recruitment.default_website_description
@@ -277,6 +302,11 @@ msgstr "In der Zwischenzeit"
 
 #. module: website_hr_recruitment
 #: model_terms:ir.ui.view,arch_db:website_hr_recruitment.apply
+msgid "Job"
+msgstr "Arbeitsstelle"
+
+#. module: website_hr_recruitment
+#: model_terms:ir.ui.view,arch_db:website_hr_recruitment.apply
 msgid "Job Application Form"
 msgstr "Bewerbungsformular"
 
@@ -284,6 +314,11 @@ msgstr "Bewerbungsformular"
 #: model_terms:ir.ui.view,arch_db:website_hr_recruitment.default_website_description
 msgid "Job Complexity:"
 msgstr "Job-Komplexität:"
+
+#. module: website_hr_recruitment
+#: model_terms:ir.ui.view,arch_db:website_hr_recruitment.hr_job_website_inherit
+msgid "Job Description"
+msgstr "Stellenbeschreibung"
 
 #. module: website_hr_recruitment
 #: model_terms:ir.ui.view,arch_db:website_hr_recruitment.detail
@@ -301,7 +336,7 @@ msgid "Job Security:"
 msgstr "Job-Sicherheit:"
 
 #. module: website_hr_recruitment
-#: code:addons/website_hr_recruitment/controllers/main.py:77
+#: code:addons/website_hr_recruitment/controllers/main.py:0
 #, python-format
 msgid "Job Title"
 msgstr "Arbeitsstelle"
@@ -310,7 +345,7 @@ msgstr "Arbeitsstelle"
 #: model_terms:ir.ui.view,arch_db:website_hr_recruitment.detail
 #: model:website.menu,name:website_hr_recruitment.menu_jobs
 msgid "Jobs"
-msgstr "Stellen"
+msgstr "Jobs"
 
 #. module: website_hr_recruitment
 #: model_terms:ir.ui.view,arch_db:website_hr_recruitment.index
@@ -384,6 +419,13 @@ msgid "Personal Evolution:"
 msgstr "Persönliche Entwicklung:"
 
 #. module: website_hr_recruitment
+#. openerp-web
+#: code:addons/website_hr_recruitment/static/src/xml/website_hr_recruitment.xml:0
+#, python-format
+msgid "Phone Number"
+msgstr "Telefonnummer:"
+
+#. module: website_hr_recruitment
 #: model_terms:ir.ui.view,arch_db:website_hr_recruitment.default_website_description
 msgid "Play any sport with colleagues and the bill is covered"
 msgstr ""
@@ -401,7 +443,10 @@ msgid "Profitable"
 msgstr "Rentabel"
 
 #. module: website_hr_recruitment
+#. openerp-web
+#: code:addons/website_hr_recruitment/static/src/xml/website_hr_recruitment.xml:0
 #: model_terms:ir.ui.view,arch_db:website_hr_recruitment.apply
+#, python-format
 msgid "Resume"
 msgstr "Fortsetzen"
 
@@ -411,7 +456,10 @@ msgid "Sales Cycle:"
 msgstr "Verkaufszyklus"
 
 #. module: website_hr_recruitment
+#. openerp-web
+#: code:addons/website_hr_recruitment/static/src/xml/website_hr_recruitment.xml:0
 #: model_terms:ir.ui.view,arch_db:website_hr_recruitment.apply
+#, python-format
 msgid "Short Introduction"
 msgstr "Kurzer Überblick"
 
@@ -483,11 +531,6 @@ msgid "Variability of the Job:"
 msgstr "Variabilität des Jobs:"
 
 #. module: website_hr_recruitment
-#: model_terms:ir.ui.view,arch_db:website_hr_recruitment.hr_job_website_inherit
-msgid "Website Editor"
-msgstr ""
-
-#. module: website_hr_recruitment
 #: model:ir.actions.act_url,name:website_hr_recruitment.action_open_website
 msgid "Website Recruitment Form"
 msgstr "Website Bewerbungsformular"
@@ -512,12 +555,18 @@ msgstr ""
 "Projekte und Personen."
 
 #. module: website_hr_recruitment
+#. openerp-web
+#: code:addons/website_hr_recruitment/static/src/xml/website_hr_recruitment.xml:0
 #: model_terms:ir.ui.view,arch_db:website_hr_recruitment.apply
+#, python-format
 msgid "Your Email"
 msgstr "Ihre E-Mail"
 
 #. module: website_hr_recruitment
+#. openerp-web
+#: code:addons/website_hr_recruitment/static/src/xml/website_hr_recruitment.xml:0
 #: model_terms:ir.ui.view,arch_db:website_hr_recruitment.apply
+#, python-format
 msgid "Your Name"
 msgstr "Ihr Name"
 

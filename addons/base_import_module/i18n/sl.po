@@ -1,21 +1,23 @@
 # Translation of Odoo Server.
 # This file contains the translation of the following modules:
-# * base_import_module
+# 	* base_import_module
 # 
 # Translators:
-# Martin Trigaux, 2019
-# Matjaz Mozetic <m.mozetic@matmoz.si>, 2019
-# Vida Potočnik <vida.potocnik@mentis.si>, 2019
-# laznikd <laznik@mentis.si>, 2019
-# matjaz k <matjaz@mentis.si>, 2019
+# Martin Trigaux, 2020
+# Matjaz Mozetic <m.mozetic@matmoz.si>, 2020
+# Vida Potočnik <vida.potocnik@mentis.si>, 2020
+# laznikd <laznik@mentis.si>, 2020
+# matjaz k <matjaz@mentis.si>, 2020
+# Tadej Lupšina <tadej@hbs.si>, 2020
+# Jasmina Macur <jasmina@hbs.si>, 2020
 # 
 msgid ""
 msgstr ""
-"Project-Id-Version: Odoo Server 12.0\n"
+"Project-Id-Version: Odoo Server saas~12.5\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2019-03-29 10:09+0000\n"
-"PO-Revision-Date: 2018-08-24 09:16+0000\n"
-"Last-Translator: matjaz k <matjaz@mentis.si>, 2019\n"
+"POT-Creation-Date: 2019-08-26 08:16+0000\n"
+"PO-Revision-Date: 2019-08-26 09:09+0000\n"
+"Last-Translator: Jasmina Macur <jasmina@hbs.si>, 2020\n"
 "Language-Team: Slovenian (https://www.transifex.com/odoo/teams/41243/sl/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -34,7 +36,7 @@ msgid "Close"
 msgstr "Zapri"
 
 #. module: base_import_module
-#: code:addons/base_import_module/controllers/main.py:31
+#: code:addons/base_import_module/controllers/main.py:0
 #, python-format
 msgid "Could not select database '%s'"
 msgstr ""
@@ -52,10 +54,10 @@ msgstr "Ustvarjeno"
 #. module: base_import_module
 #: model:ir.model.fields,field_description:base_import_module.field_base_import_module__display_name
 msgid "Display Name"
-msgstr "Prikazni naziv"
+msgstr "Naziv prikaza"
 
 #. module: base_import_module
-#: code:addons/base_import_module/models/ir_module.py:123
+#: code:addons/base_import_module/models/ir_module.py:0
 #, python-format
 msgid "File '%s' exceed maximum allowed file size"
 msgstr "Datoteka '%s' presega največjo dovoljeno velikost"
@@ -86,7 +88,7 @@ msgstr "Uvoz aplikacije"
 #. module: base_import_module
 #: model:ir.model.fields,field_description:base_import_module.field_base_import_module__import_message
 msgid "Import Message"
-msgstr ""
+msgstr "Uvozi sporočilo"
 
 #. module: base_import_module
 #: model:ir.actions.act_window,name:base_import_module.action_view_base_module_import
@@ -132,10 +134,10 @@ msgid "Module .ZIP file"
 msgstr ".ZIP datoteka modula"
 
 #. module: base_import_module
-#: code:addons/base_import_module/models/ir_module.py:113
+#: code:addons/base_import_module/models/ir_module.py:0
 #, python-format
 msgid "No file sent."
-msgstr ""
+msgstr "Nobena datoteka ni bila poslana."
 
 #. module: base_import_module
 #: model_terms:ir.ui.view,arch_db:base_import_module.view_base_module_import
@@ -143,13 +145,13 @@ msgid "Note: you can only import data modules (.xml files and static assets)"
 msgstr ""
 
 #. module: base_import_module
-#: code:addons/base_import_module/controllers/main.py:25
+#: code:addons/base_import_module/controllers/main.py:0
 #, python-format
 msgid "Only administrators can upload a module"
 msgstr ""
 
 #. module: base_import_module
-#: code:addons/base_import_module/models/ir_module.py:115
+#: code:addons/base_import_module/models/ir_module.py:0
 #, python-format
 msgid "Only zip files are supported."
 msgstr ""
@@ -170,22 +172,25 @@ msgid "Status"
 msgstr "Status"
 
 #. module: base_import_module
-#: code:addons/base_import_module/models/ir_module.py:50
+#: code:addons/base_import_module/models/ir_module.py:0
 #, python-format
 msgid "Studio customizations require Studio"
 msgstr ""
 
 #. module: base_import_module
-#: code:addons/base_import_module/models/ir_module.py:57
+#: code:addons/base_import_module/models/ir_module.py:0
 #, python-format
 msgid "Studio customizations require the Odoo Studio app."
 msgstr ""
 
 #. module: base_import_module
-#: code:addons/base_import_module/models/ir_module.py:52
+#: code:addons/base_import_module/models/ir_module.py:0
 #, python-format
-msgid "Unmet module dependencies: %s"
-msgstr "Neizpolnjene odvisnosti modula: %s"
+msgid ""
+"Unmet module dependencies: \n"
+"\n"
+" - %s"
+msgstr ""
 
 #. module: base_import_module
 #: model:ir.model,name:base_import_module.model_ir_ui_view
@@ -193,11 +198,11 @@ msgid "View"
 msgstr "Prikaz"
 
 #. module: base_import_module
-#: selection:base.import.module,state:0
+#: model:ir.model.fields.selection,name:base_import_module.selection__base_import_module__state__done
 msgid "done"
 msgstr "opravljeno"
 
 #. module: base_import_module
-#: selection:base.import.module,state:0
+#: model:ir.model.fields.selection,name:base_import_module.selection__base_import_module__state__init
 msgid "init"
 msgstr "init"
